@@ -1,0 +1,103 @@
+
+```plantuml
+@startuml
+
+class UserController {
+  - AuthService authService
+  + createUser(CreateUserRequestDto request): AuthResponseDto
+}
+
+note right of UserController
+ユーザー新規登録APIを担当するController。
+登録情報をUserServiceへ渡し、
+ユーザー作成処理を行う。
+end note
+
+class CreateUserRequestDto {
+  - String name
+  - String email
+  - String password
+  - Department department
+  - Position position
+  - Role role
+}
+
+note right of CreateUserRequestDto
+ユーザー新規登録時のリクエストDTO。
+名前、メールアドレス、パスワード、
+部署、役職、権限を受け取る。
+end note
+
+class AuthService {
+  - UserRepository userRepository
+  - EmployeeRepository employeeRepository
+  - PasswordEncoder passwordEncoder
+  - JwtProvider jwtProvider
+  + register(request: CreateUserRequestDto): AuthResponseDto
+}
+
+note right of AuthService
+ユーザー登録処理を担当するService。
+パスワードを暗号化してusersテーブルへ保存し、
+登録後にJWTを発行する。
+end note
+
+class JwtProvider {
+  + generateToken(Long userId): String
+}
+
+note right of JwtProvider
+JWTを生成・検証するクラス。
+新規登録時にトークンを作成し、
+ユーザーIDを組み込む。
+end note
+
+class User {
+  - Long id
+  - String email
+  - String password
+  - Role role
+
+  + setEmail(String email): void
+  + setPassword(String password): void
+  + setRole(Role role): void
+}
+
+class Employee {
+  - Long id
+  - String employeeNumber
+  - String name
+  - String email
+  - Department department
+  - Position position
+  + setEmployeeNumber(String employeeNumber): void
+  + setName(String name): void
+  + setEmail(String email): void
+  + setDepartment(Department department): void
+  + setPosition(Position position): void
+
+}
+
+class UserRepository {
+    <<interface>>
+
+    + findByEmail(String email): Optional<User>
+    + save(User user): User
+}
+
+class EmployeeRepository {
+    <<interface>>
+
+    + existsByEmployeeNumber(String employeeNumber): boolean
+    + save(Employee employee): Employee
+}
+
+UserController --> CreateUserRequestDto : ユーザー登録入力・選択
+UserController --> AuthService : ユーザー登録処理を依頼
+AuthService --> JwtProvider : JWT発行
+AuthService --> UserRepository : ユーザー情報を保存
+AuthService --> EmployeeRepository : 社員情報を保存
+UserRepository --> User : 　Userエンティティを保存
+EmployeeRepository --> Employee :　 Employeeエンティティを保存
+@enduml
+```

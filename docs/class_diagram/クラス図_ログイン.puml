@@ -1,0 +1,119 @@
+@startuml
+
+class AuthController {
+  - AuthService authService
+  + login(authRequestDto: AuthRequestDto): AuthResponseDto
+}
+
+note right of AuthController
+ログインAPIを担当するController。
+入力された認証情報をAuthServiceへ渡し、
+ログイン認証処理を行う。
+end note
+
+class AuthRequestDto {
+  - String email
+  - String password
+}
+
+note right of AuthRequestDto
+ログイン時のリクエストDTO。
+メールアドレスと
+パスワードを受け取る。
+end note
+
+class AuthResponseDto {
+  - String token
+  - Role role
+}
+
+note right of AuthResponseDto
+ログイン成功時の
+レスポンスDTO。
+JWTトークンと
+ユーザー権限を返却する。
+end note
+
+class AuthService {
+  - UserRepository userRepository
+  - PasswordEncoder passwordEncoder
+  - JwtProvider jwtProvider
+
+  + authenticate(email:String,password:String):AuthResponseDto
+}
+
+note right of AuthService
+ログイン認証処理を担当するService。
+メールアドレス検索、
+パスワード照合、
+JWTトークン生成を行う。
+end note
+
+class UserRepository {
+  + findByEmail(email:String):Optional<User>
+}
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当するRepository。
+ユーザー情報の検索を行う。
+end note
+
+class User {
+  - Long id
+  - String email
+  - String password
+  - Role role
+}
+
+note right of User
+ユーザー情報を保持するEntity。
+usersテーブルに対応し、
+認証に必要な情報を管理する。
+end note
+
+class JwtProvider {
+  + generateToken(userId:Long):String
+}
+
+note right of JwtProvider
+JWTを生成・検証するクラス。
+ログイン時にトークンを作成し、
+ユーザーIDを組み込む。
+end note
+
+interface PasswordEncoder {
+  + encode(password:String):String
+  + matches(rawPassword:String,encodedPassword:String):boolean
+}
+
+note right of PasswordEncoder
+パスワードの暗号化と
+照合を担当する。
+end note
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+note right of Role
+ユーザー権限を表す列挙型。
+管理者(ADMIN)、
+社員(EMPLOYEE)を管理する。
+end note
+
+AuthController --> AuthService
+AuthController --> AuthRequestDto
+AuthController --> AuthResponseDto
+
+AuthService --> UserRepository
+AuthService --> PasswordEncoder
+AuthService --> JwtProvider
+AuthService --> User
+
+UserRepository --> User
+User --> Role
+AuthResponseDto --> Role
+
+@enduml

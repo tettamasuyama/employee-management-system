@@ -1,0 +1,74 @@
+@startuml
+
+class EmployeeController {
+  - EmployeeService employeeService
+  + deleteEmployee(employeeNumber: String): ApiResponseDto<Void>
+}
+
+note right of EmployeeController
+管理者の社員削除APIを担当するController。
+削除対象の社員番号を受け取り、
+EmployeeServiceへ削除処理を依頼する。
+end note
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+  - UserRepository userRepository
+  + deleteEmployee(employeeNumber: String): void
+}
+
+note right of EmployeeService
+社員削除処理を担当するService。
+
+社員番号から社員情報を検索し、
+社員情報に紐づくログインユーザー情報があれば、
+User情報も削除する。
+end note
+
+interface EmployeeRepository {
+  + findByEmployeeNumber(employeeNumber: String): Optional<Employee>
+  + delete(employee: Employee): void
+}
+
+note right of EmployeeRepository
+削除対象の社員情報を検索し、
+Employeeテーブルから削除する。
+end note
+
+interface UserRepository {
+  + findByEmail(email: String): Optional<User>
+  + delete(user: User): void
+}
+
+note right of UserRepository
+社員情報のメールアドレスに紐づく
+ログインユーザー情報を検索し、削除する。
+end note
+
+class ApiResponseDto<T> {
+  - String status
+  - T data
+  - String message
+}
+
+class Employee {
+  - Long id
+  - String employeeNumber
+  - String email
+}
+
+class User {
+  - Long id
+  - String email
+  - String password
+  - Role role
+}
+
+EmployeeController --> EmployeeService
+EmployeeService --> EmployeeRepository
+EmployeeService --> UserRepository
+EmployeeController ..> ApiResponseDto
+EmployeeRepository --> Employee
+UserRepository --> User
+
+@enduml

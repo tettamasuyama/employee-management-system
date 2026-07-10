@@ -1,0 +1,39 @@
+@startuml
+
+class EmployeeController {
+    - EmployeeService employeeService
+    + getEmployees(): ApiResponseDto<List<Employee>>
+}
+
+note right of EmployeeController
+社員一覧取得APIを担当するController。
+社員一覧取得処理を
+EmployeeServiceへ依頼し、
+取得結果を返却する。
+end note
+
+class EmployeeService {
+    - EmployeeRepository employeeRepository
+    + findAll(): List<Employee>
+}
+
+note right of EmployeeService
+社員一覧取得処理を担当するService。
+EmployeeRepositoryから
+社員一覧を取得する。
+end note
+
+interface EmployeeRepository {
+    + findAll(): List<Employee>
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当するRepository。
+社員一覧の取得を行う。
+end note
+
+EmployeeController --> EmployeeService
+EmployeeService --> EmployeeRepository
+
+@enduml

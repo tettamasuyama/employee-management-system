@@ -1,0 +1,66 @@
+@startuml
+
+class EmployeeController {
+    - EmployeeService employeeService
+    + updateMyEmployee(authentication: Authentication, request: EmployeeRequestForAdminDto): ApiResponseDto<Employee>
+}
+
+note right of EmployeeController
+社員自身の情報更新APIを担当するController。
+認証情報からログインユーザーIDを取得し、
+EmployeeServiceへ更新処理を依頼する。
+更新結果を返却する。
+end note
+
+class EmployeeService {
+    - EmployeeRepository employeeRepository
+    - UserRepository userRepository
+    + updateMe(userId: Long, name: String, email: String): Employee
+}
+
+note right of EmployeeService
+社員自身の情報更新処理を担当するService。
+ログインユーザー情報と
+社員情報を取得し、
+氏名・メールアドレスを更新する。
+end note
+
+interface EmployeeRepository {
+    + findByEmail(email: String): Optional<Employee>
+    + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当するRepository。
+社員情報の取得・更新を行う。
+end note
+
+interface UserRepository {
+    + findById(id: Long): Optional<User>
+    + save(user: User): User
+}
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当するRepository。
+ログインユーザー情報の取得・更新を行う。
+end note
+
+class EmployeeRequestForAdminDto {
+    - String name
+    - String email
+}
+
+note right of EmployeeRequestForAdminDto
+社員情報更新時の
+リクエストDTO。
+氏名とメールアドレスを受け取る。
+end note
+
+EmployeeController --> EmployeeService
+EmployeeController --> EmployeeRequestForAdminDto
+EmployeeService --> UserRepository
+EmployeeService --> EmployeeRepository
+
+@enduml

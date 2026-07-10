@@ -1,0 +1,51 @@
+@startuml
+
+class EmployeeController {
+    - EmployeeService employeeService
+    + getMyEmployee(authentication: Authentication): ApiResponseDto<Employee>
+}
+
+note right of EmployeeController
+社員自身の情報取得APIを担当するController。
+認証情報からログインユーザーを取得し、
+EmployeeServiceへ処理を依頼する。
+取得結果を返却する。
+end note
+
+class EmployeeService {
+    - EmployeeRepository employeeRepository
+    - UserRepository userRepository
+    + findMyEmployee(userId: Long): Employee
+}
+
+note right of EmployeeService
+社員自身の情報取得処理を担当するService。
+ログインユーザー情報を取得し、
+社員情報を検索する。
+end note
+
+interface EmployeeRepository {
+    + findByEmail(email: String): Optional<Employee>
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当するRepository。
+社員情報を検索する。
+end note
+
+interface UserRepository {
+    + findById(id: Long): Optional<User>
+}
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当するRepository。
+ログインユーザー情報を取得する。
+end note
+
+EmployeeController --> EmployeeService
+EmployeeService --> UserRepository
+EmployeeService --> EmployeeRepository
+
+@enduml

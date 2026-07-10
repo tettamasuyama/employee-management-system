@@ -1,0 +1,75 @@
+@startuml
+
+class EmployeeController {
+  - EmployeeService employeeService
+  + upsertEmployee(employeeNumber: String, request: EmployeeRequestForAdminDto): ApiResponseDto<Employee>
+}
+
+note right of EmployeeController
+管理者の社員登録・更新APIを担当するController。
+社員番号をPathVariableで受け取り、
+入力内容をEmployeeRequestForAdminDtoで受け取る。
+end note
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+  + upsertEmployee(employeeNumber: String, request: EmployeeRequestForAdminDto): Employee
+}
+
+note right of EmployeeService
+社員登録・更新処理を担当するService。
+
+社員番号が既に存在する場合は更新、
+存在しない場合は新規登録として処理する。
+end note
+
+interface EmployeeRepository {
+  + findByEmployeeNumber(employeeNumber: String): Optional<Employee>
+  + existsByEmployeeNumber(employeeNumber: String): boolean
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+社員番号による検索と、
+社員情報の保存処理を担当するRepository。
+end note
+
+class EmployeeRequestForAdminDto {
+  - String name
+  - String email
+  - Department department
+  - Position position
+  - LocalDate hireDate
+  - Status status
+}
+
+note right of EmployeeRequestForAdminDto
+管理者が社員情報を登録・更新する際に使用するDTO。
+氏名、メールアドレス、部署、役職、
+入社日、在籍状態を受け取る。
+end note
+
+class ApiResponseDto<T> {
+  - String status
+  - T data
+  - String message
+}
+
+class Employee {
+  - Long id
+  - String employeeNumber
+  - String name
+  - String email
+  - Department department
+  - Position position
+  - LocalDate hireDate
+  - Status status
+}
+
+EmployeeController --> EmployeeService
+EmployeeService --> EmployeeRepository
+EmployeeController ..> EmployeeRequestForAdminDto
+EmployeeController ..> ApiResponseDto
+EmployeeRepository --> Employee
+
+@enduml

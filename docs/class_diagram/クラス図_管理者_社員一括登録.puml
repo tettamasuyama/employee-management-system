@@ -1,0 +1,68 @@
+@startuml
+
+class EmployeeController {
+  - EmployeeService employeeService
+  + importCsv(file: MultipartFile): ApiResponseDto<String>
+}
+
+note right of EmployeeController
+管理者のCSV一括登録APIを担当するController。
+アップロードされたCSVファイルを受け取り、
+EmployeeServiceへ一括登録処理を依頼する。
+end note
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+  + importCsv(file: MultipartFile): void
+}
+
+note right of EmployeeService
+CSV一括登録処理を担当するService。
+
+CSVファイルを読み込み、
+各行の社員情報をEmployeeに変換して保存する。
+end note
+
+interface EmployeeRepository {
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+CSVから作成されたEmployee情報を
+Employeeテーブルへ保存する。
+end note
+
+class MultipartFile {
+  + getInputStream(): InputStream
+  + getOriginalFilename(): String
+}
+
+note right of MultipartFile
+アップロードされたCSVファイルを表すクラス。
+Springでファイルアップロード時に使用する。
+end note
+
+class ApiResponseDto<T> {
+  - String status
+  - T data
+  - String message
+}
+
+class Employee {
+  - Long id
+  - String employeeNumber
+  - String name
+  - String email
+  - Department department
+  - Position position
+  - LocalDate hireDate
+  - Status status
+}
+
+EmployeeController --> EmployeeService
+EmployeeService --> EmployeeRepository
+EmployeeController ..> MultipartFile
+EmployeeController ..> ApiResponseDto
+EmployeeRepository --> Employee
+
+@enduml
