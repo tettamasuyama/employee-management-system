@@ -1,0 +1,68 @@
+@startuml
+
+actor Admin as "管理者"
+
+participant EmployeeController
+participant EmployeeService
+participant EmployeeRepository
+participant UserRepository
+
+Admin -> EmployeeController : DELETE /api/employees/{employeeNumber}
+
+note right of Admin
+管理者ユーザー。
+社員一覧から削除対象の社員を選択し、
+社員情報の削除をシステムへ依頼する。
+end note
+
+note right of EmployeeController
+管理者の社員削除APIを担当するController。
+URLから社員番号を受け取り、
+EmployeeServiceへ削除処理を依頼する。
+end note
+
+EmployeeController -> EmployeeService : deleteEmployee(employeeNumber)
+
+note right of EmployeeService
+社員情報削除処理を担当するService。
+
+社員番号をもとに社員情報を取得し、
+紐づくログインユーザー情報を削除した後、
+社員情報を削除する。
+end note
+
+EmployeeService -> EmployeeRepository : findByEmployeeNumber(employeeNumber)
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当するRepository。
+
+社員番号をもとに
+削除対象の社員情報を取得する。
+end note
+
+EmployeeRepository --> EmployeeService : Employee
+
+EmployeeService -> UserRepository : findByEmail(employee.email)
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当するRepository。
+
+社員情報に紐づく
+ログインユーザー情報を検索・削除する。
+end note
+
+UserRepository --> EmployeeService : User
+
+EmployeeService -> UserRepository : delete(user)
+
+EmployeeService -> EmployeeRepository : delete(employee)
+
+EmployeeRepository --> EmployeeService : 削除完了
+
+EmployeeService --> EmployeeController : 削除完了
+
+EmployeeController --> Admin : ApiResponseDto<Void>
+
+@enduml
