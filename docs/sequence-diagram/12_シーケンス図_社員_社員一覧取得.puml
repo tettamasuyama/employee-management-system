@@ -1,0 +1,54 @@
+@startuml
+
+actor Admin as "社員"
+
+participant JwtFilter
+participant JwtProvider
+participant EmployeeController
+participant EmployeeService
+participant EmployeeRepository
+
+Admin -> JwtFilter : GET /api/employees\nBearer Token
+note right
+  社員が社員一覧を取得する。
+  JWTを付けてリクエストを送信する。
+end note
+
+JwtFilter -> JwtProvider : validateToken()
+note right
+  JWTが有効か確認する。
+end note
+
+JwtProvider --> JwtFilter : true
+
+JwtFilter -> JwtProvider : getUserId()
+note right
+  JWTからログイン中ユーザーのIDを取得する。
+end note
+
+JwtProvider --> JwtFilter : userId
+
+JwtFilter -> EmployeeController : 認証済みリクエスト
+
+EmployeeController -> EmployeeService : findAll()
+note right
+  Controllerが社員一覧取得処理を
+  Serviceへ依頼する。
+end note
+
+EmployeeService -> EmployeeRepository : findAll()
+note right
+  Employeeテーブルから
+  全社員情報を取得する。
+end note
+
+EmployeeRepository --> EmployeeService : List<Employee>
+
+EmployeeService --> EmployeeController : List<Employee>
+
+EmployeeController --> Admin : 200 OK\nApiResponseDto<List<Employee>>
+note right
+  社員一覧をApiResponseDtoに包んで返却する。
+end note
+
+@enduml

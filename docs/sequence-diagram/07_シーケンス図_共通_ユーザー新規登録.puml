@@ -1,0 +1,87 @@
+@startuml
+
+actor User as "ユーザー"
+
+participant UserController
+participant UserService
+participant UserRepository
+participant PasswordEncoder
+participant EmployeeRepository
+participant JwtProvider
+
+User -> UserController : POST /api/auth/register\n(email, password, role)
+
+UserController -> UserService : save(request)
+
+UserService -> UserRepository : findByEmail(email)
+
+alt メールアドレス重複
+
+    UserRepository --> UserService : User
+
+    note right of UserService
+    既に登録済みのメールアドレス
+    end note
+
+    UserService --> UserController : ValidationException
+
+    UserController --> User : 409 Conflict
+
+else 登録可能
+
+    ' UserRepository --> UserService : Optional.empty
+
+    UserService -> PasswordEncoder : encode(password)
+
+    PasswordEncoder --> UserService : hashedPassword
+
+    UserService -> UserRepository : save(user)
+    
+    note right of UserService
+    Userエンティティ生成
+    ・暗号化したパスワード
+    ・メールアドレス
+    ・role
+    end note
+
+    ' UserRepository --> UserService : User
+
+    UserService -> UserService : createEmployeeNumber()
+    note right of UserService
+    社員番号の自動生成
+    end note
+
+    loop 社員番号が重複している間
+
+        UserService -> EmployeeRepository : existsByEmployeeNumber(employeeNumber)
+
+        EmployeeRepository --> UserService : true / false
+
+    end
+
+    UserService -> EmployeeRepository : save(Employee)
+
+    note right of UserService
+    Employeeエンティティ生成
+    ・社員番号
+    ・氏名
+    ・メールアドレス
+    ・部署
+    ・役職
+    ・権限
+    end note
+
+
+    ' EmployeeRepository --> UserService : Employee
+
+    UserService -> JwtProvider : generateToken(user.getId())
+
+    JwtProvider --> UserService : token
+
+    UserService --> UserController : AuthResponseDto(token, role)
+
+    UserController --> User : 200 OK\ntoken, roleを返却
+
+end
+
+@enduml

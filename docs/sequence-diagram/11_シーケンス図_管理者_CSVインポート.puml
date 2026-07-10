@@ -1,0 +1,65 @@
+@startuml
+
+actor Admin as "管理者"
+
+participant JwtFilter
+participant JwtProvider
+participant EmployeeController
+participant EmployeeService
+participant EmployeeRepository
+
+Admin -> JwtFilter : POST /api/employees/import\nBearer Token\nCSVファイル
+note right
+  管理者がCSVファイルをアップロードし、
+  社員情報を一括登録する。
+end note
+
+JwtFilter -> JwtProvider : validateToken()
+JwtProvider --> JwtFilter : true
+
+JwtFilter -> JwtProvider : getUserId()
+JwtProvider --> JwtFilter : userId
+
+JwtFilter -> EmployeeController : 認証済みリクエスト
+
+EmployeeController -> EmployeeService : importCsv(file)
+note right
+  ControllerがCSVファイルをServiceへ渡す。
+end note
+
+EmployeeService -> EmployeeService : BufferedReaderでCSVを読み込む
+note right
+  UTF-8でCSVファイルを読み込む。
+end note
+
+EmployeeService -> EmployeeService : reader.readLine()
+note right
+  1行目はヘッダーのため読み飛ばす。
+end note
+
+loop CSVの2行目以降を1行ずつ処理
+
+    EmployeeService -> EmployeeService : line.split(",")
+    note right
+      1行の文字列をカンマ区切りで分割する。
+    end note
+
+    EmployeeService -> EmployeeService : new Employee(...)
+    note right
+      CSVの値からEmployeeオブジェクトを生成する。
+    end note
+
+    EmployeeService -> EmployeeRepository : save(employee)
+    note right
+      Employeeテーブルへ保存する。
+    end note
+
+    EmployeeRepository --> EmployeeService : Employee
+
+end
+
+EmployeeService --> EmployeeController : CSV読み込み完了
+
+EmployeeController --> Admin : 200 OK\nCSV取込完了
+
+@enduml

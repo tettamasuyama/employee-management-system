@@ -1,0 +1,112 @@
+@startuml
+
+actor User as "ユーザー"
+
+participant JwtFilter
+participant JwtProvider
+participant SecurityContextHolder
+participant EmployeeController
+participant EmployeeService
+participant UserRepository
+participant EmployeeRepository
+
+User -> JwtFilter : GET /api/employees/me\nBearer Token
+note right
+  ユーザーが自身の社員情報を取得するために
+  /api/employees/me へリクエストを送信する。
+  Bearer Tokenにはログイン時に発行されたJWTが入っている。
+end note
+
+JwtFilter -> JwtProvider : validateToken()
+note right
+  JwtFilterがJwtProviderに対して
+  JWTが有効かどうかを確認する。
+end note
+
+JwtProvider --> JwtFilter : true
+note right
+  トークンが改ざんされておらず、
+  有効期限も問題なければtrueを返す。
+end note
+
+JwtFilter -> JwtProvider : getUserId()
+note right
+  JWTの中に保存されている
+  userIdを取り出す。
+end note
+
+JwtProvider --> JwtFilter : userId
+note right
+  ログイン済みユーザーのIDを返す。
+end note
+
+JwtFilter -> SecurityContextHolder : Authenticationを保存\n(CustomUserPrincipal)
+note right
+  取得したuserIdをCustomUserPrincipalに入れ、
+  AuthenticationとしてSecurityContextHolderへ保存する。
+  これにより、Controllerでログインユーザー情報を扱える。
+end note
+
+JwtFilter -> EmployeeController : 認証済みリクエスト
+note right
+  JWT認証が成功したため、
+  リクエストがControllerへ進む。
+end note
+
+EmployeeController -> SecurityContextHolder : getContext().getAuthentication()
+note right
+  ControllerではSpring Securityによって
+  SecurityContextHolderに保存された
+  Authenticationを利用できる。
+end note
+
+SecurityContextHolder --> EmployeeController : Authentication
+
+EmployeeController -> EmployeeController : authentication.getPrincipal()\n→ CustomUserPrincipal
+note right
+  Authenticationの中から
+  CustomUserPrincipalを取り出す。
+end note
+
+EmployeeController -> EmployeeController : principal.getId()
+note right
+  CustomUserPrincipalから
+  ログイン中ユーザーのuserIdを取得する。
+end note
+
+EmployeeController -> EmployeeService : findMyEmployee(userId)
+note right
+  Controllerは取得したuserIdを使って、
+  自身の社員情報取得処理をServiceへ依頼する。
+end note
+
+EmployeeService -> UserRepository : findById(userId)
+note right
+  Userテーブルから
+  userIdに一致するユーザー情報を取得する。
+end note
+
+UserRepository --> EmployeeService : User
+
+EmployeeService -> EmployeeRepository : findByEmail(user.getEmail())
+note right
+  EmployeeテーブルにはuserIdがないため、
+  Userのメールアドレスを使って
+  社員情報を検索する。
+end note
+
+EmployeeRepository --> EmployeeService : Employee
+
+EmployeeService --> EmployeeController : Employee
+note right
+  Serviceは取得した社員情報を
+  Controllerへ返す。
+end note
+
+EmployeeController --> User : 200 OK\nApiResponseDto<Employee>
+note right
+  Controllerは社員情報を
+  ApiResponseDtoに包んでユーザーへ返却する。
+end note
+
+@enduml

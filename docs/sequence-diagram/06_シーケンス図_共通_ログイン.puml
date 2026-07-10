@@ -1,0 +1,55 @@
+@startuml
+
+actor User as "ユーザー"
+
+participant AuthController
+participant AuthService
+participant UserRepository
+participant PasswordEncoder
+participant JwtProvider
+
+User -> AuthController : POST /api/auth/login\n(email, password)
+
+AuthController -> AuthService : authenticate(email, password)
+
+AuthService -> UserRepository : findByEmail(email)
+
+alt ユーザーが存在する
+
+    UserRepository --> AuthService : User
+
+    AuthService -> PasswordEncoder : matches(password, user.getPassword())
+
+    alt パスワード一致
+
+        PasswordEncoder --> AuthService : true
+
+        AuthService -> JwtProvider : generateToken(userId)
+
+        JwtProvider --> AuthService : token
+
+        AuthService --> AuthController : AuthResponseDto(token, role)
+
+        AuthController --> User : 200 OK\ntoken, roleを返却
+
+    else パスワード不一致
+
+        PasswordEncoder --> AuthService : false
+
+        AuthService --> AuthController : AuthException
+
+        AuthController --> User : 401 Unauthorized
+
+    end
+
+else ユーザーが存在しない
+
+    UserRepository --> AuthService : Optional.empty
+
+    AuthService --> AuthController : AuthException
+
+    AuthController --> User : 401 Unauthorized
+
+end
+
+@enduml

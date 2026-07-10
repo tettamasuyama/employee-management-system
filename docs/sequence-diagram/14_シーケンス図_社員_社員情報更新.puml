@@ -1,0 +1,86 @@
+@startuml
+
+actor Admin as "管理者"
+
+participant JwtFilter
+participant JwtProvider
+participant EmployeeController
+participant EmployeeService
+participant EmployeeRepository
+
+Admin -> JwtFilter : POST /api/employees/{employeeNumber}\nBearer Token\n社員情報
+note right
+  管理者が社員情報の登録または更新を行う。
+  リクエストにはJWTと社員情報を含める。
+end note
+
+JwtFilter -> JwtProvider : validateToken()
+note right
+  JWTの有効性を確認する。
+end note
+
+JwtProvider --> JwtFilter : true
+
+JwtFilter -> JwtProvider : getUserId()
+note right
+  JWTからログインユーザーのIDを取得する。
+end note
+
+JwtProvider --> JwtFilter : userId
+
+JwtFilter -> EmployeeController : 認証済みリクエスト
+note right
+  JWT認証が成功したため、
+  Controllerへリクエストを渡す。
+end note
+
+EmployeeController -> EmployeeService : updateEmployee(employeeNumber, request)
+note right
+  Controllerは社員番号と入力内容を
+  Serviceへ渡す。
+end note
+
+EmployeeService -> EmployeeRepository : findByEmployeeNumber(employeeNumber)
+note right
+  社員番号から既存社員を検索する。
+end note
+
+alt 社員番号が存在しない
+
+    EmployeeRepository --> EmployeeService : Optional.empty
+
+    note right
+      社員番号が存在しないため、
+      新規登録処理を行う。
+    end note
+
+    EmployeeService -> EmployeeRepository : save(new Employee)
+
+    EmployeeRepository --> EmployeeService : Employee
+
+else 社員番号が存在する
+
+    EmployeeRepository --> EmployeeService : Employee
+
+    note right
+      入力された項目のみ更新する。
+    end note
+
+    EmployeeService -> EmployeeRepository : save(employee)
+
+    EmployeeRepository --> EmployeeService : Employee
+
+end
+
+EmployeeService --> EmployeeController : Employee
+note right
+  登録または更新した社員情報を返す。
+end note
+
+EmployeeController --> Admin : 200 OK\n登録または更新完了
+note right
+  ApiResponseDto<Employee>として
+  処理結果を返却する。
+end note
+
+@enduml
