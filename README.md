@@ -33,7 +33,6 @@ JWT認証によるログイン機能を実装しています。
 ### Frontend
 - React
 - TypeScript
-- Axios
 - React Router
 
 ### Backend
