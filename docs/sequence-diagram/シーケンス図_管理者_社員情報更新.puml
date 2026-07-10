@@ -1,0 +1,55 @@
+@startuml
+
+actor Admin as "管理者"
+
+participant EmployeeController
+participant EmployeeService
+participant EmployeeRepository
+
+Admin -> EmployeeController : PUT /api/employees/{employeeNumber}\n更新内容送信
+
+note right of Admin
+管理者ユーザー。
+社員一覧から更新対象の社員を選択し、
+編集した社員情報の更新をシステムへ依頼する。
+end note
+
+note right of EmployeeController
+管理者の社員情報更新APIを担当するController。
+URLから社員番号を受け取り、
+リクエストDTOから更新内容を受け取る。
+
+受け取った情報をEmployeeServiceへ渡し、
+更新処理を依頼する。
+end note
+
+EmployeeController -> EmployeeService : updateEmployee(employeeNumber, request)
+
+note right of EmployeeService
+社員情報の更新処理を担当するService。
+
+社員番号をもとに更新対象の社員情報を取得し、
+リクエスト内容で社員情報を更新する。
+end note
+
+EmployeeService -> EmployeeRepository : findByEmployeeNumber(employeeNumber)
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当するRepository。
+
+社員番号をもとに社員情報を検索し、
+更新後の社員情報を保存する。
+end note
+
+EmployeeRepository --> EmployeeService : Employee
+
+EmployeeService -> EmployeeRepository : save(employee)
+
+EmployeeRepository --> EmployeeService : 更新したEmployee
+
+EmployeeService --> EmployeeController : 更新したEmployee
+
+EmployeeController --> Admin : ApiResponseDto<Employee>
+
+@enduml
