@@ -1,6 +1,6 @@
-# API一覧（社員管理アプリ）
+# API一覧（社員管理システム）
 
-## 1. 認証系API
+## 1. 認証API
 
 | No | エンドポイント | メソッド | 認証 | 権限 | 概要 |
 |----|--------------|----------|------|------|------|
@@ -9,49 +9,79 @@
 
 ---
 
-## 2. 管理者専用API（admin）
+## 2. 管理者API（ADMIN）
 
 | No | エンドポイント | メソッド | 認証 | 権限 | 概要 |
 |----|--------------|----------|------|------|------|
-| 3 | /api/employees | GET | 必要 | admin | 社員一覧を取得 |
-| 5 | /api/employees/{employeeNumber} | POST | 必要 | admin | 社員情報を新規登録or更新 |
-| 6 | /api/employees/{employeeNumber} | DELETE | 必要 | admin | 社員情報を削除 |
-| 7 | /api/employees/import | POST | 必要 | admin | CSVで一括登録・更新 |
+| 3 | /api/employees | GET | 必要 | ADMIN | 社員一覧を取得 |
+| 4 | /api/employees/{employeeNumber} | PUT | 必要 | ADMIN | 社員情報を登録または更新 |
+| 5 | /api/employees/{employeeNumber} | DELETE | 必要 | ADMIN | 社員情報を削除 |
+| 6 | /api/employees/import | POST | 必要 | ADMIN | CSVによる一括登録・更新 |
 
 ---
 
-## 3. 社員専用API（employee）
+## 3. 社員API（EMPLOYEE）
 
 | No | エンドポイント | メソッド | 認証 | 権限 | 概要 |
 |----|--------------|----------|------|------|------|
-| 10 | /api/employees | GET | 必要 | employee | 社員一覧を取得（氏名・メールアドレスのみ）
-| 11 | /api/employees/me | GET | 必要 | employee | 自身の情報を取得 |
-| 12 | /api/employees/me | PUT | 必要 | employee | 氏名・メールアドレスのみ更新 |
+| 7 | /api/employees | GET | 必要 | EMPLOYEE | 社員一覧を取得（氏名・メールアドレスのみ） |
+| 8 | /api/employees/me | GET | 必要 | EMPLOYEE | 自身の社員情報を取得 |
+| 9 | /api/employees/me | PUT | 必要 | EMPLOYEE | 自身の氏名・メールアドレスを更新 |
 
 ---
 
-## 補足
+# API共通仕様
 
-### ■ 命名ルール
-- エンドポイントは名詞で統一する（例：`/employees`）
+## 命名ルール
+
+- エンドポイントは名詞で統一する
 - 操作はHTTPメソッドで表現する
-  - GET：取得
-  - POST：作成
-  - PUT：更新
-  - DELETE：削除
 
-### ■ 認証
-- JWT認証を前提とする
-- headerに付与する
-- 認証が必要なAPIは `Authorization: Bearer {token}` を使用する
+| メソッド | 内容 |
+|----------|------|
+| GET | 取得 |
+| POST | 作成 |
+| PUT | 更新 |
+| DELETE | 削除 |
 
-### ■ 権限
-- admin：全操作可能( 閲覧、登録、削除、更新、CSVによる一括登録 )
-- employee : 自身の情報を登録 + 社員情報の閲覧( 名前、メールアドレスのみ )
+---
 
-## 4. レスポンス形式
+## 認証
 
-### 成功
+JWT認証を採用する。
+
+認証が必要なAPIはリクエストヘッダーに
+
+```
+Authorization: Bearer {token}
+```
+
+を付与する。
+
+---
+
+## 権限
+
+### ADMIN
+
+- 社員一覧取得
+- 社員登録
+- 社員更新
+- 社員削除
+- CSV一括登録
+
+### EMPLOYEE
+
+- 社員一覧取得（氏名・メールアドレスのみ）
+- 自身の社員情報取得
+- 自身の氏名・メールアドレス更新
+
+---
+
+# 共通レスポンス
+
+## 成功
+
 ```json
 {
   "status": "SUCCESS",
@@ -60,7 +90,8 @@
 }
 ```
 
-### エラー
+## エラー
+
 ```json
 {
   "status": "ERROR",
@@ -69,55 +100,65 @@
 }
 ```
 
-### ステータスコード
-| コード | 意味 |
-|-------|------|
-| 200 | 成功(送信・更新・削除) |
-| 201 | 成功(作成) |
+---
+
+## ステータスコード
+
+| コード | 内容 |
+|---------|------|
+| 200 | 取得・更新・削除成功 |
+| 201 | 作成成功 |
 | 400 | 入力エラー |
 | 401 | 認証エラー |
-| 404 | データなし |
+| 404 | データが存在しない |
 | 409 | データ重複 |
 | 500 | サーバーエラー |
 
 ---
 
-# API仕様
+# API詳細
 
-### ◼︎POST /api/auth/register (ユーザー登録)
+---
 
-#### リクエスト
+## POST /api/auth/register
+
+### リクエスト
+
 ```json
 {
   "email": "example@example.com",
-  "password": "password123",
-  "message": "アカウントの作成が完了しました。"
+  "password": "password123"
 }
 ```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
   "status": "SUCCESS",
   "data": {
-      token :"jwt-token" ,
-      role :"EMPLOYEE" or "ADMIN"
-  }
-  "message": null
+    "token": "jwt-token",
+    "role": "EMPLOYEE"
+  },
+  "message": "ユーザー登録が完了しました。"
 }
 ```
 
-### ◼︎POST /api/auth/login (ログイン)
+---
 
-#### リクエスト
+## POST /api/auth/login
+
+### リクエスト
+
 ```json
 {
-  "email": "example@exapmle.com",
-  "password": "password123",
+  "email": "example@example.com",
+  "password": "password123"
 }
 ```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
   "status": "SUCCESS",
@@ -129,13 +170,18 @@
 }
 ```
 
-### ◼︎GET /api/employees (社員一覧を取得)
+---
 
-#### リクエストヘッダー
+## GET /api/employees
 
+### リクエストヘッダー
+
+```
 Authorization: Bearer {token}
+```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
   "status": "SUCCESS",
@@ -144,34 +190,31 @@ Authorization: Bearer {token}
       "employeeNumber": "11111",
       "name": "山田太郎",
       "email": "example@example.com",
-      "department": "営業部",
-      "position": "部長",
-      "joiningDate": "2000-01-01",
+      "department": "SALES",
+      "position": "MANAGER",
+      "hireDate": "2000-01-01",
       "status": "ACTIVE"
     }
   ],
   "message": "社員一覧の取得が完了しました。"
 }
 ```
-## ◼︎GET /api/employees/me (自身の社員情報を取得)
 
-#### リクエストヘッダー
+---
 
+## GET /api/employees/me
+
+### リクエストヘッダー
+
+```
 Authorization: Bearer {token}
-
-
-#### リクエスト
-```json
-    {
-  "name": "山田太郎",
-  "email": "example@example.com"
-}
 ```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
-    "status": "SUCCESS",
+  "status": "SUCCESS",
   "data": {
     "employeeNumber": "11111",
     "name": "山田太郎",
@@ -181,22 +224,24 @@ Authorization: Bearer {token}
     "hireDate": "2000-01-01",
     "status": "ACTIVE"
   },
-  "message": "自身の情報の取得が完了しました"
+  "message": "自身の情報の取得が完了しました。"
 }
 ```
 
+---
 
+## PUT /api/employees/{employeeNumber}
 
-## ◼︎PUT /api/employees/{employeeNumber} (社員情報を更新・登録)
+### リクエストヘッダー
 
-#### リクエストヘッダー
-
+```
 Authorization: Bearer {token}
+```
 
-#### リクエスト
+### リクエスト
+
 ```json
-    
-  {
+{
   "name": "山田太郎",
   "email": "example@example.com",
   "department": "SALES",
@@ -204,13 +249,12 @@ Authorization: Bearer {token}
   "hireDate": "2000-01-01",
   "status": "ACTIVE"
 }
-
 ```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
-    
   "status": "SUCCESS",
   "data": {
     "employeeNumber": "11111",
@@ -222,29 +266,33 @@ Authorization: Bearer {token}
     "status": "ACTIVE"
   },
   "message": "登録または更新が完了しました。"
-
 }
 ```
 
-## ◼︎POST /api/employees/me (自身の情報の登録・更新)
+---
 
-#### リクエストヘッダー
+## PUT /api/employees/me
 
+### リクエストヘッダー
+
+```
 Authorization: Bearer {token}
+```
 
+### リクエスト
 
-#### リクエスト
 ```json
-    {
+{
   "name": "山田太郎",
   "email": "example@example.com"
 }
 ```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
-    "status": "SUCCESS",
+  "status": "SUCCESS",
   "data": {
     "employeeNumber": "11111",
     "name": "山田太郎",
@@ -254,39 +302,50 @@ Authorization: Bearer {token}
     "hireDate": "2000-01-01",
     "status": "ACTIVE"
   },
-  "message": "登録または更新が完了しました"
+  "message": "更新が完了しました。"
 }
 ```
 
-### ◼︎DELETE /api/auth/{employeeNumber} (社員情報の削除)
+---
 
-#### リクエストヘッダー
+## DELETE /api/employees/{employeeNumber}
 
+### リクエストヘッダー
+
+```
 Authorization: Bearer {token}
+```
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
   "status": "SUCCESS",
   "data": null,
-  "message": "社員情報を削除しました"
+  "message": "社員情報を削除しました。"
 }
 ```
 
-## ◼︎POST /api/employees/import (CSVで一括登録・更新)
+---
 
-#### リクエストヘッダー
+## POST /api/employees/import
 
+### リクエストヘッダー
+
+```
 Authorization: Bearer {token}
+```
 
-#### リクエスト
+### リクエスト
+
 CSVファイル
 
-#### レスポンス
+### レスポンス
+
 ```json
 {
   "status": "SUCCESS",
   "data": "CSV取込完了",
-  "message": "読み取りが完了しました"
+  "message": "CSVの取込みが完了しました。"
 }
 ```
