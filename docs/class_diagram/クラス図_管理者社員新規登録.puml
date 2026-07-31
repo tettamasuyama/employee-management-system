@@ -1,0 +1,284 @@
+@startuml
+title 管理者による社員新規登録処理クラス図
+
+class EmployeeController {
+  - EmployeeService employeeService
+
+  + createEmployee(
+      request: EmployeeCreateRequestDto
+    ): EmployeeResponseDto
+}
+
+note right of EmployeeController
+管理者による社員新規登録APIを担当するController。
+
+POST /api/employees
+
+フロントから社員登録情報を受け取り、
+EmployeeServiceへ登録処理を依頼する。
+
+登録された社員情報を
+EmployeeResponseDtoとして返却する。
+end note
+
+
+class EmployeeCreateRequestDto {
+  - String loginEmail
+  - String password
+  - Role role
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - Long departmentId
+  - Long positionId
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of EmployeeCreateRequestDto
+管理者が社員を新規登録するときの
+リクエストDTO。
+
+loginEmail：
+ログインに使用するUser.email
+
+employeeEmail：
+社員情報として管理するEmployee.email
+
+部署と役職は、それぞれのIDを受け取る。
+end note
+
+
+class EmployeeResponseDto {
+  - Long id
+  - Long userId
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - Long departmentId
+  - String departmentName
+  - Long positionId
+  - String positionName
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of EmployeeResponseDto
+社員登録成功時にフロントへ返すDTO。
+
+登録された社員情報と、
+部署名・役職名を保持する。
+
+パスワードは返却しない。
+end note
+
+
+class EmployeeService {
+  - UserRepository userRepository
+  - EmployeeRepository employeeRepository
+  - DepartmentRepository departmentRepository
+  - PositionRepository positionRepository
+  - PasswordEncoder passwordEncoder
+
+  + createEmployee(
+      request: EmployeeCreateRequestDto
+    ): EmployeeResponseDto
+}
+
+note right of EmployeeService
+管理者による社員新規登録処理を担当するService。
+
+ログインメールアドレス、
+社員番号、社員用メールアドレスの
+重複確認を行う。
+
+部署IDと役職IDから、
+DepartmentとPositionを取得する。
+
+パスワードをハッシュ化して
+Userを登録する。
+
+登録したUserをEmployeeに設定し、
+社員情報を登録する。
+
+UserとEmployeeの登録は
+同一トランザクション内で行う。
+end note
+
+
+interface UserRepository {
+  + existsByEmail(email: String): boolean
+  + save(user: User): User
+}
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当する。
+
+ログインメールアドレスの重複確認と、
+ログインユーザー情報の保存を行う。
+end note
+
+
+interface EmployeeRepository {
+  + existsByEmployeeNumber(
+      employeeNumber: String
+    ): boolean
+
+  + existsByEmail(email: String): boolean
+
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+社員番号と社員用メールアドレスの
+重複確認を行い、
+社員情報を保存する。
+end note
+
+
+interface DepartmentRepository {
+  + findById(id: Long): Optional<Department>
+}
+
+note right of DepartmentRepository
+指定された部署IDに対応する
+Departmentを取得する。
+end note
+
+
+interface PositionRepository {
+  + findById(id: Long): Optional<Position>
+}
+
+note right of PositionRepository
+指定された役職IDに対応する
+Positionを取得する。
+end note
+
+
+interface PasswordEncoder {
+  + encode(rawPassword: String): String
+}
+
+note right of PasswordEncoder
+入力されたパスワードを
+ハッシュ化する。
+end note
+
+
+class User {
+  - Long id
+  - String email
+  - String password
+  - Role role
+}
+
+note right of User
+usersテーブルに対応するEntity。
+
+ログインメールアドレス、
+ハッシュ化済みパスワード、
+ユーザー権限を保持する。
+end note
+
+
+class Employee {
+  - Long id
+  - User user
+  - Department department
+  - Position position
+  - String employeeNumber
+  - String name
+  - String email
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of Employee
+employeesテーブルに対応するEntity。
+
+登録されたUserと関連付けられ、
+社員番号、氏名、社員用メールアドレス、
+部署、役職、入社日、在籍状態を保持する。
+end note
+
+
+class Department {
+  - Long id
+  - String name
+}
+
+note right of Department
+departmentsテーブルに対応するEntity。
+
+社員が所属する部署情報を保持する。
+end note
+
+
+class Position {
+  - Long id
+  - String name
+}
+
+note right of Position
+positionsテーブルに対応するEntity。
+
+社員の役職情報を保持する。
+end note
+
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
+note right of Role
+ユーザー権限を表す列挙型。
+
+EMPLOYEE：0
+ADMIN：1
+end note
+
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVE：在籍
+RETIRED：退職
+end note
+
+
+EmployeeController --> EmployeeCreateRequestDto : 登録情報を受け取る
+EmployeeController --> EmployeeService : 登録処理を依頼
+
+EmployeeService --> UserRepository : Userを保存
+EmployeeService --> EmployeeRepository : Employeeを保存
+EmployeeService --> DepartmentRepository : 部署を取得
+EmployeeService --> PositionRepository : 役職を取得
+EmployeeService --> PasswordEncoder : パスワードをハッシュ化
+
+UserRepository --> User : Userを操作
+EmployeeRepository --> Employee : Employeeを操作
+DepartmentRepository --> Department : Departmentを操作
+PositionRepository --> Position : Positionを操作
+
+EmployeeService --> EmployeeResponseDto : 登録結果を生成
+EmployeeController --> EmployeeResponseDto : フロントへ返却
+
+Employee "1" --> "1" User : user_id
+Employee "*" --> "1" Department : department_id
+Employee "*" --> "1" Position : position_id
+
+User --> Role : 権限を保持
+Employee --> EmployeeStatus : 在籍状態を保持
+
+@enduml
