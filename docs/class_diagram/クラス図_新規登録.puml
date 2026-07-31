@@ -192,7 +192,6 @@ end note
 
 interface EmployeeRepository {
   + existsByEmployeeNumber(employeeNumber: String): boolean
-  + existsByEmail(email: String): boolean
   + save(employee: Employee): Employee
 }
 
@@ -276,7 +275,7 @@ DepartmentRepository --> Department : Departmentを操作
 PositionRepository --> Position : Positionを操作
 
 Employee --> User : user_idで関連付け
-Employee --> Department : department_idで関連付け
+Employee --> Department : department_idDで関連付け
 Employee --> Position : position_idで関連付け
 
 User --> Role
