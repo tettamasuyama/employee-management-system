@@ -191,7 +191,6 @@ UsersテーブルとEmployeesテーブルへの登録は、同一トランザク
   "role": 0,
   "employeeNumber": "11111",
   "name": "山田太郎",
-  "employeeEmail": "employee@example.com",
   "departmentId": 4,
   "positionId": 1,
   "hireDate": "2026-04-01",
@@ -208,7 +207,6 @@ UsersテーブルとEmployeesテーブルへの登録は、同一トランザク
 | role           | Integer | ○  | `users.role`                | 0：EMPLOYEE、1：ADMIN   |
 | employeeNumber | String  | ○  | `employees.employee_number` | 社員番号                 |
 | name           | String  | ○  | `employees.name`            | 氏名                   |
-| employeeEmail  | String  | ○  | `employees.email`           | 社員用メールアドレス           |
 | departmentId   | Long    | ○  | `employees.department_id`   | 部署ID                 |
 | positionId     | Long    | ○  | `employees.position_id`     | 役職ID                 |
 | hireDate       | String  | ○  | `employees.hire_date`       | 入社日。`YYYY-MM-DD`形式   |
