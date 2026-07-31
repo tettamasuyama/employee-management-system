@@ -1,0 +1,225 @@
+@startuml
+title CSV一括登録シーケンス図
+
+actor 管理者
+boundary React as Frontend
+control EmployeeImportController
+control EmployeeImportService
+control CsvEmployeeMapper
+entity UserRepository
+entity EmployeeRepository
+entity DepartmentRepository
+entity PositionRepository
+control PasswordEncoder
+database PostgreSQL
+
+管理者 -> Frontend : CSVファイルを選択
+
+note right of Frontend
+CSVファイルのみ
+アップロード可能とする。
+
+拡張子チェックを行う。
+end note
+
+Frontend -> EmployeeImportController
+: POST /api/employees/import
+
+EmployeeImportController
+-> EmployeeImportService
+: importCsv(file)
+
+EmployeeImportService
+-> CsvEmployeeMapper
+: parse(file)
+
+CsvEmployeeMapper --> EmployeeImportService
+: List<CsvEmployeeRowDto>
+
+note right of EmployeeImportService
+
+CSVは
+1行ずつ順番に処理する。
+
+1件失敗しても
+残りのデータは継続して登録する。
+
+最後に成功件数・失敗件数を
+集計する。
+
+end note
+
+loop CSVの全行
+
+== ログインメール重複確認 ==
+
+EmployeeImportService
+-> UserRepository
+: existsByEmail(loginEmail)
+
+UserRepository
+-> PostgreSQL
+
+PostgreSQL --> UserRepository
+
+UserRepository --> EmployeeImportService
+
+alt 重複
+
+note right
+
+この行は登録しない。
+
+エラー件数を加算する。
+
+end note
+
+else 登録可能
+
+== 社員番号確認 ==
+
+EmployeeImportService
+-> EmployeeRepository
+: existsByEmployeeNumber(employeeNumber)
+
+EmployeeRepository
+-> PostgreSQL
+
+PostgreSQL --> EmployeeRepository
+
+EmployeeRepository --> EmployeeImportService
+
+== 社員メール確認 ==
+
+EmployeeImportService
+-> EmployeeRepository
+: existsByEmail(employeeEmail)
+
+EmployeeRepository
+-> PostgreSQL
+
+PostgreSQL --> EmployeeRepository
+
+EmployeeRepository --> EmployeeImportService
+
+== 部署取得 ==
+
+EmployeeImportService
+-> DepartmentRepository
+: findByName(departmentName)
+
+DepartmentRepository
+-> PostgreSQL
+
+PostgreSQL --> DepartmentRepository
+
+DepartmentRepository --> EmployeeImportService
+
+== 役職取得 ==
+
+EmployeeImportService
+-> PositionRepository
+: findByName(positionName)
+
+PositionRepository
+-> PostgreSQL
+
+PostgreSQL --> PositionRepository
+
+PositionRepository --> EmployeeImportService
+
+note right of EmployeeImportService
+
+CSVでは部署名・役職名から
+
+Department.id
+
+Position.id
+
+へ変換する。
+
+Employeeには
+外部キーとして設定する。
+
+end note
+
+== パスワード暗号化 ==
+
+EmployeeImportService
+-> PasswordEncoder
+: encode(password)
+
+PasswordEncoder --> EmployeeImportService
+: hashedPassword
+
+== User登録 ==
+
+EmployeeImportService
+-> UserRepository
+: save(User)
+
+UserRepository
+-> PostgreSQL
+
+PostgreSQL --> UserRepository
+: User(id)
+
+UserRepository --> EmployeeImportService
+: User
+
+note right of EmployeeImportService
+
+Userを先に登録する。
+
+取得したUser.idを
+Employee.userへ設定する。
+
+end note
+
+== Employee登録 ==
+
+EmployeeImportService
+-> EmployeeRepository
+: save(Employee)
+
+EmployeeRepository
+-> PostgreSQL
+
+PostgreSQL --> EmployeeRepository
+: Employee
+
+EmployeeRepository --> EmployeeImportService
+
+end
+
+end
+
+note right of EmployeeImportService
+
+CSV登録結果
+
+・総件数
+
+・成功件数
+
+・失敗件数
+
+・エラー内容
+
+を集計する。
+
+end note
+
+EmployeeImportService
+--> EmployeeImportController
+: CsvImportResponseDto
+
+EmployeeImportController
+--> Frontend
+: 200 OK
+
+Frontend
+--> 管理者
+: 登録結果を表示
+
+@enduml

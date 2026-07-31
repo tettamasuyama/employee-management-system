@@ -1,0 +1,64 @@
+@startuml
+title ログイン処理シーケンス図
+
+actor 利用者
+boundary React as Frontend
+control AuthController
+control AuthService
+entity UserRepository
+entity PasswordEncoder
+control JwtProvider
+database PostgreSQL
+
+利用者 -> Frontend : ログインメールアドレスと\nパスワードを入力
+Frontend -> AuthController : POST /api/auth/login\nLoginRequestDto(loginEmail, password)
+
+AuthController -> AuthService : login(request)
+
+AuthService -> UserRepository : findByEmail(loginEmail)
+UserRepository -> PostgreSQL : users.emailでUserを検索
+PostgreSQL --> UserRepository : User情報
+
+alt Userが存在しない
+    UserRepository --> AuthService : Optional.empty
+    AuthService --> AuthController : 認証エラー
+    AuthController --> Frontend : 401 Unauthorized\nログイン失敗
+    Frontend --> 利用者 : エラーメッセージを表示
+
+else Userが存在する
+    UserRepository --> AuthService : User
+
+    AuthService -> PasswordEncoder : matches(\n入力パスワード,\nハッシュ化済みパスワード\n)
+
+    alt パスワードが一致しない
+        PasswordEncoder --> AuthService : false
+        AuthService --> AuthController : 認証エラー
+        AuthController --> Frontend : 401 Unauthorized\nログイン失敗
+        Frontend --> 利用者 : エラーメッセージを表示
+
+    else パスワードが一致する
+        PasswordEncoder --> AuthService : true
+
+        AuthService -> JwtProvider : generateToken(user.id)
+        note right of JwtProvider
+        JWTのsubjectには
+        Users.idを設定する。
+        end note
+
+        JwtProvider --> AuthService : JWTトークン
+
+        AuthService -> AuthService : AuthResponseDtoを生成\n(token, role)
+        AuthService --> AuthController : AuthResponseDto
+        AuthController --> Frontend : 200 OK\n{ token, role }
+
+        Frontend -> Frontend : tokenとroleを保存
+
+        alt role = ADMIN
+            Frontend --> 利用者 : 管理者画面を表示
+        else role = EMPLOYEE
+            Frontend --> 利用者 : 社員画面を表示
+        end
+    end
+end
+
+@enduml

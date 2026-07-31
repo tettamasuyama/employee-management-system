@@ -1,0 +1,96 @@
+@startuml
+title 社員削除シーケンス図
+
+actor 管理者
+boundary React as Frontend
+control EmployeeController
+control EmployeeService
+entity EmployeeRepository
+entity UserRepository
+database PostgreSQL
+
+管理者 -> Frontend : 削除ボタンを押下
+
+note right of Frontend
+社員一覧画面で選択した
+Employees.idを送信する。
+end note
+
+Frontend -> EmployeeController : DELETE /api/employees/{id}
+
+EmployeeController -> EmployeeService : deleteEmployee(id)
+
+note right of EmployeeService
+社員削除ではEmployees.idを使用する。
+
+Users.idではなく、
+Employees.idをキーとして
+削除対象を特定する。
+end note
+
+EmployeeService -> EmployeeRepository : findById(id)
+
+EmployeeRepository -> PostgreSQL
+: SELECT * FROM employees
+WHERE id = ?
+
+PostgreSQL --> EmployeeRepository
+: Employee
+
+EmployeeRepository --> EmployeeService
+: Employee
+
+note right of EmployeeService
+Employeeには
+関連するUserが保持されている。
+
+Employee.userから
+Users.idを取得できる。
+end note
+
+== Employee削除 ==
+
+EmployeeService -> EmployeeRepository
+: delete(employee)
+
+EmployeeRepository -> PostgreSQL
+: DELETE FROM employees
+
+PostgreSQL --> EmployeeRepository
+: OK
+
+EmployeeRepository --> EmployeeService
+: 完了
+
+== User削除 ==
+
+EmployeeService -> UserRepository
+: delete(employee.user)
+
+UserRepository -> PostgreSQL
+: DELETE FROM users
+
+PostgreSQL --> UserRepository
+: OK
+
+UserRepository --> EmployeeService
+: 完了
+
+note right of EmployeeService
+UserとEmployeeは
+同一トランザクションで削除する。
+
+どちらか一方だけ削除されることを
+防止する。
+end note
+
+EmployeeService --> EmployeeController
+: 削除成功
+
+EmployeeController --> Frontend
+: 204 No Content
+
+Frontend --> 管理者
+: 一覧を再取得して画面更新
+
+@enduml

@@ -1,0 +1,89 @@
+@startuml
+title 社員更新シーケンス図
+
+actor 管理者
+boundary React as Frontend
+control EmployeeController
+control EmployeeService
+entity EmployeeRepository
+entity DepartmentRepository
+entity PositionRepository
+database PostgreSQL
+
+管理者 -> Frontend : 更新内容を入力
+
+Frontend -> EmployeeController : PUT /api/employees/{id}
+
+EmployeeController -> EmployeeService : updateEmployee(id, request)
+
+EmployeeService -> EmployeeRepository : findById(id)
+
+EmployeeRepository -> PostgreSQL : Employees取得
+
+PostgreSQL --> EmployeeRepository : Employee
+
+EmployeeRepository --> EmployeeService : Employee
+
+== 社員番号重複確認 ==
+
+EmployeeService -> EmployeeRepository : existsByEmployeeNumber(employeeNumber)
+
+EmployeeRepository -> PostgreSQL
+
+PostgreSQL --> EmployeeRepository : true / false
+
+EmployeeRepository --> EmployeeService : true / false
+
+== 社員メール重複確認 ==
+
+EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
+
+EmployeeRepository -> PostgreSQL
+
+PostgreSQL --> EmployeeRepository : true / false
+
+EmployeeRepository --> EmployeeService : true / false
+
+== 部署取得 ==
+
+EmployeeService -> DepartmentRepository : findById(departmentId)
+
+DepartmentRepository -> PostgreSQL
+
+PostgreSQL --> DepartmentRepository : Department
+
+DepartmentRepository --> EmployeeService : Department
+
+== 役職取得 ==
+
+EmployeeService -> PositionRepository : findById(positionId)
+
+PositionRepository -> PostgreSQL
+
+PostgreSQL --> PositionRepository : Position
+
+PositionRepository --> EmployeeService : Position
+
+== 更新 ==
+
+EmployeeService -> EmployeeRepository : save(employee)
+
+EmployeeRepository -> PostgreSQL : UPDATE employees
+
+PostgreSQL --> EmployeeRepository : 更新済Employee
+
+EmployeeRepository --> EmployeeService : Employee
+
+EmployeeService --> EmployeeController : EmployeeResponseDto
+
+EmployeeController --> Frontend : 200 OK
+
+Frontend --> 管理者 : 更新完了画面
+
+note right of EmployeeService
+User.emailは更新しない。
+
+Employee.emailのみ更新する。
+end note
+
+@enduml

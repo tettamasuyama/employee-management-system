@@ -1,0 +1,126 @@
+@startuml
+title ログインユーザー自身の情報更新シーケンス図
+
+actor 社員
+boundary React as Frontend
+control JwtFilter
+control EmployeeMeController
+control EmployeeService
+entity EmployeeRepository
+database PostgreSQL
+
+社員 -> Frontend : 氏名・社員メールアドレスを入力
+Frontend -> Frontend : 入力内容を確認
+
+note right of Frontend
+本人が更新できる項目は
+次の2項目のみ。
+
+・氏名
+・社員メールアドレス
+
+社員メールアドレスは
+Employees.emailを表す。
+end note
+
+Frontend -> JwtFilter : PUT /api/employees/me\nAuthorization: Bearer JWT\nEmployeeMeUpdateRequestDto
+
+JwtFilter -> JwtFilter : JWTを検証
+JwtFilter -> JwtFilter : SubjectからUsers.idを取得
+
+note right of JwtFilter
+JWTのSubjectには
+ログインユーザーのUsers.idが
+設定されている。
+
+社員番号やEmployees.idは
+JWTには保存しない。
+end note
+
+alt JWTが無効または期限切れ
+    JwtFilter --> Frontend : 401 Unauthorized
+    Frontend --> 社員 : 再ログインを促す
+
+else JWTが有効
+    JwtFilter -> EmployeeMeController : 認証済みリクエスト\nuserIdを引き渡す
+
+    EmployeeMeController -> EmployeeService : updateMe(userId, request)
+
+    note right of EmployeeService
+    Users.idを基に
+    Employees.user_idが一致する
+    Employeeを取得する。
+
+    この処理により、
+    ログイン中の社員本人だけを
+    更新対象にできる。
+    end note
+
+    EmployeeService -> EmployeeRepository : findByUserId(userId)
+    EmployeeRepository -> PostgreSQL : SELECT * FROM employees\nWHERE user_id = ?
+    PostgreSQL --> EmployeeRepository : Employee検索結果
+    EmployeeRepository --> EmployeeService : Optional<Employee>
+
+    alt Employeeが存在しない
+        EmployeeService --> EmployeeMeController : 社員情報未登録エラー
+        EmployeeMeController --> Frontend : 404 Not Found
+        Frontend --> 社員 : 社員情報が見つからないことを表示
+
+    else Employeeが存在する
+        EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
+        EmployeeRepository -> PostgreSQL : SELECT EXISTS\nFROM employees\nWHERE email = ?
+        PostgreSQL --> EmployeeRepository : true / false
+        EmployeeRepository --> EmployeeService : true / false
+
+        note right of EmployeeService
+        重複確認の対象は
+        Employees.emailである。
+
+        Users.emailは
+        ログイン用メールアドレスなので
+        この処理では確認・更新しない。
+        end note
+
+        alt 他の社員が同じメールアドレスを使用している
+            EmployeeService --> EmployeeMeController : メールアドレス重複エラー
+            EmployeeMeController --> Frontend : 409 Conflict
+            Frontend --> 社員 : メールアドレス重複を表示
+
+        else 更新可能
+            EmployeeService -> EmployeeService : employee.setName(request.name)
+            EmployeeService -> EmployeeService : employee.setEmail(request.employeeEmail)
+
+            note right of EmployeeService
+            更新対象はEmployeeのみ。
+
+            ・Employees.name
+            ・Employees.email
+
+            Users.emailや
+            Users.password、Users.roleは
+            更新しない。
+            end note
+
+            EmployeeService -> EmployeeRepository : save(employee)
+            EmployeeRepository -> PostgreSQL : UPDATE employees\nSET name = ?, email = ?\nWHERE id = ?
+            PostgreSQL --> EmployeeRepository : 更新済みEmployee
+            EmployeeRepository --> EmployeeService : Employee
+
+            EmployeeService -> EmployeeService : EmployeeMeResponseDtoへ変換
+
+            note right of EmployeeService
+            レスポンスには
+            更新後の社員情報を設定する。
+
+            パスワードなどの認証情報は
+            レスポンスへ含めない。
+            end note
+
+            EmployeeService --> EmployeeMeController : EmployeeMeResponseDto
+            EmployeeMeController --> Frontend : 200 OK\nEmployeeMeResponseDto
+            Frontend --> 社員 : 更新後の情報と\n完了メッセージを表示
+        end
+    end
+end
+
+@enduml

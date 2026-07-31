@@ -1,0 +1,39 @@
+@startuml
+title 社員一覧取得シーケンス図
+
+actor 管理者
+boundary React as Frontend
+control EmployeeController
+control EmployeeService
+entity EmployeeRepository
+database PostgreSQL
+
+管理者 -> Frontend : 社員一覧画面を開く
+
+Frontend -> EmployeeController : GET /api/employees
+
+EmployeeController -> EmployeeService : getEmployeeList()
+
+EmployeeService -> EmployeeRepository : findAll()
+
+EmployeeRepository -> PostgreSQL : SELECT employees\nJOIN departments\nJOIN positions
+
+PostgreSQL --> EmployeeRepository : 社員一覧
+
+EmployeeRepository --> EmployeeService : List<Employee>
+
+note right of EmployeeService
+Employeeを
+EmployeeResponseDtoへ変換する。
+
+部署名・役職名も
+レスポンスへ設定する。
+end note
+
+EmployeeService --> EmployeeController : List<EmployeeResponseDto>
+
+EmployeeController --> Frontend : 200 OK\n社員一覧
+
+Frontend --> 管理者 : 一覧画面を表示
+
+@enduml

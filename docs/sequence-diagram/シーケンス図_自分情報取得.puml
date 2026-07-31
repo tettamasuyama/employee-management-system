@@ -1,0 +1,77 @@
+@startuml
+title ログインユーザー自身の情報取得シーケンス図
+
+actor 社員
+boundary React as Frontend
+control EmployeeMeController
+control EmployeeService
+control JwtFilter
+entity EmployeeRepository
+database PostgreSQL
+
+社員 -> Frontend : マイページを開く
+
+note right of Frontend
+ログイン時に保存した
+JWTをAuthorizationヘッダーへ設定する。
+end note
+
+Frontend -> EmployeeMeController : GET /api/employees/me
+
+EmployeeMeController -> JwtFilter : JWTを検証
+
+JwtFilter -> JwtFilter : Users.idを取得
+
+note right of JwtFilter
+JWTのSubjectには
+Users.idを保存している。
+
+社員番号ではなく
+Users.idを利用する。
+end note
+
+JwtFilter --> EmployeeMeController : userId
+
+EmployeeMeController -> EmployeeService : getMe(userId)
+
+note right of EmployeeService
+Employees.user_idと
+Users.idを照合することで
+
+ログインユーザー自身の
+社員情報のみ取得する。
+end note
+
+EmployeeService -> EmployeeRepository : findByUserId(userId)
+
+EmployeeRepository -> PostgreSQL
+: SELECT
+employees
+JOIN departments
+JOIN positions
+WHERE user_id = ?
+
+PostgreSQL --> EmployeeRepository
+: Employee
+
+EmployeeRepository --> EmployeeService
+: Employee
+
+note right of EmployeeService
+Employeeを
+EmployeeMeResponseDtoへ変換する。
+
+部署名・役職名も
+レスポンスへ設定する。
+end note
+
+EmployeeService --> EmployeeMeController
+: EmployeeMeResponseDto
+
+EmployeeMeController --> Frontend
+: 200 OK
+
+Frontend --> 社員
+: 自分の社員情報を表示
+
+@enduml
