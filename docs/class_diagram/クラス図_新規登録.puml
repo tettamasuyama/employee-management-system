@@ -1,56 +1,109 @@
-
 ```plantuml
 @startuml
 
-class UserController {
+class AuthController {
   - AuthService authService
-  + createUser(CreateUserRequestDto request): AuthResponseDto
+  + register(request: CreateUserRequestDto): AuthResponseDto
 }
 
-note right of UserController
+note right of AuthController
 ユーザー新規登録APIを担当するController。
-登録情報をUserServiceへ渡し、
-ユーザー作成処理を行う。
+登録情報をAuthServiceへ渡し、
+ログインユーザー情報と社員情報の
+新規登録処理を行う。
 end note
 
+
 class CreateUserRequestDto {
-  - String name
-  - String email
+  - String loginEmail
   - String password
-  - Department department
-  - Position position
   - Role role
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - Long departmentId
+  - Long positionId
+  - LocalDate hireDate
+  - EmployeeStatus status
 }
 
 note right of CreateUserRequestDto
 ユーザー新規登録時のリクエストDTO。
-名前、メールアドレス、パスワード、
-部署、役職、権限を受け取る。
+
+loginEmailはUsersテーブルの
+ログイン用メールアドレスとして使用する。
+
+employeeEmailはEmployeesテーブルの
+社員用メールアドレスとして使用する。
+
+部署と役職は、それぞれのIDを受け取る。
 end note
+
+
+class AuthResponseDto {
+  - String token
+  - Role role
+}
+
+note right of AuthResponseDto
+ユーザー登録成功時のレスポンスDTO。
+JWTトークンとユーザー権限を返却する。
+end note
+
 
 class AuthService {
   - UserRepository userRepository
   - EmployeeRepository employeeRepository
+  - DepartmentRepository departmentRepository
+  - PositionRepository positionRepository
   - PasswordEncoder passwordEncoder
   - JwtProvider jwtProvider
+
   + register(request: CreateUserRequestDto): AuthResponseDto
 }
 
 note right of AuthService
 ユーザー登録処理を担当するService。
-パスワードを暗号化してusersテーブルへ保存し、
-登録後にJWTを発行する。
+
+ログインメールアドレス、
+社員番号、社員用メールアドレスの
+重複確認を行う。
+
+部署IDと役職IDから、
+対応するマスターデータを取得する。
+
+パスワードを暗号化して
+Usersテーブルへ登録した後、
+発行されたUsers.idを社員情報に関連付ける。
+
+UsersテーブルとEmployeesテーブルへの登録は、
+同一トランザクション内で実行する。
+
+登録成功後にJWTを発行する。
 end note
 
+
 class JwtProvider {
-  + generateToken(Long userId): String
+  + generateToken(userId: Long): String
 }
 
 note right of JwtProvider
 JWTを生成・検証するクラス。
 新規登録時にトークンを作成し、
-ユーザーIDを組み込む。
+Users.idをトークンへ組み込む。
 end note
+
+
+interface PasswordEncoder {
+  + encode(password: String): String
+  + matches(rawPassword: String, encodedPassword: String): boolean
+}
+
+note right of PasswordEncoder
+パスワードの暗号化と
+照合を担当する。
+end note
+
 
 class User {
   - Long id
@@ -58,46 +111,181 @@ class User {
   - String password
   - Role role
 
-  + setEmail(String email): void
-  + setPassword(String password): void
-  + setRole(Role role): void
+  + setEmail(email: String): void
+  + setPassword(password: String): void
+  + setRole(role: Role): void
 }
+
+note right of User
+usersテーブルに対応するEntity。
+
+ログイン認証に必要な
+メールアドレス、パスワード、
+権限を管理する。
+end note
+
 
 class Employee {
   - Long id
+  - User user
+  - Department department
+  - Position position
   - String employeeNumber
   - String name
   - String email
-  - Department department
-  - Position position
-  + setEmployeeNumber(String employeeNumber): void
-  + setName(String name): void
-  + setEmail(String email): void
-  + setDepartment(Department department): void
-  + setPosition(Position position): void
+  - LocalDate hireDate
+  - EmployeeStatus status
 
+  + setUser(user: User): void
+  + setDepartment(department: Department): void
+  + setPosition(position: Position): void
+  + setEmployeeNumber(employeeNumber: String): void
+  + setName(name: String): void
+  + setEmail(email: String): void
+  + setHireDate(hireDate: LocalDate): void
+  + setStatus(status: EmployeeStatus): void
 }
 
-class UserRepository {
-    <<interface>>
+note right of Employee
+employeesテーブルに対応するEntity。
 
-    + findByEmail(String email): Optional<User>
-    + save(User user): User
+User、Department、Positionと関連付け、
+社員番号、氏名、社員用メールアドレス、
+入社日、在籍状態を管理する。
+end note
+
+
+class Department {
+  - Long id
+  - String name
 }
 
-class EmployeeRepository {
-    <<interface>>
+note right of Department
+departmentsテーブルに対応するEntity。
+社員が所属する部署情報を管理する。
+end note
 
-    + existsByEmployeeNumber(String employeeNumber): boolean
-    + save(Employee employee): Employee
+
+class Position {
+  - Long id
+  - String name
 }
 
-UserController --> CreateUserRequestDto : ユーザー登録入力・選択
-UserController --> AuthService : ユーザー登録処理を依頼
-AuthService --> JwtProvider : JWT発行
-AuthService --> UserRepository : ユーザー情報を保存
+note right of Position
+positionsテーブルに対応するEntity。
+社員の役職情報を管理する。
+end note
+
+
+interface UserRepository {
+  + findByEmail(email: String): Optional<User>
+  + existsByEmail(email: String): boolean
+  + save(user: User): User
+}
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当する。
+
+ログインメールアドレスの重複確認と、
+ユーザー情報の保存を行う。
+end note
+
+
+interface EmployeeRepository {
+  + existsByEmployeeNumber(employeeNumber: String): boolean
+  + existsByEmail(email: String): boolean
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+社員番号と社員用メールアドレスの
+重複確認、および社員情報の保存を行う。
+end note
+
+
+interface DepartmentRepository {
+  + findById(id: Long): Optional<Department>
+}
+
+note right of DepartmentRepository
+Departmentエンティティに対する
+データベース操作を担当する。
+
+指定された部署IDに対応する
+部署情報を取得する。
+end note
+
+
+interface PositionRepository {
+  + findById(id: Long): Optional<Position>
+}
+
+note right of PositionRepository
+Positionエンティティに対する
+データベース操作を担当する。
+
+指定された役職IDに対応する
+役職情報を取得する。
+end note
+
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
+note right of Role
+ユーザー権限を表す列挙型。
+
+データベースには、
+EMPLOYEEを0、
+ADMINを1として保存する。
+end note
+
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVEは在籍、
+RETIREDは退職を表す。
+end note
+
+
+AuthController --> CreateUserRequestDto : 登録情報を受け取る
+AuthController --> AuthService : 登録処理を依頼
+AuthController --> AuthResponseDto : 登録結果を返却
+
+AuthService --> UserRepository : ログイン情報を保存
 AuthService --> EmployeeRepository : 社員情報を保存
-UserRepository --> User : 　Userエンティティを保存
-EmployeeRepository --> Employee :　 Employeeエンティティを保存
+AuthService --> DepartmentRepository : 部署情報を取得
+AuthService --> PositionRepository : 役職情報を取得
+AuthService --> PasswordEncoder : パスワードを暗号化
+AuthService --> JwtProvider : JWTを発行
+AuthService --> AuthResponseDto : レスポンスを生成
+
+UserRepository --> User : Userを操作
+EmployeeRepository --> Employee : Employeeを操作
+DepartmentRepository --> Department : Departmentを操作
+PositionRepository --> Position : Positionを操作
+
+Employee --> User : user_idで関連付け
+Employee --> Department : department_idで関連付け
+Employee --> Position : position_idで関連付け
+
+User --> Role
+Employee --> EmployeeStatus
+AuthResponseDto --> Role
+CreateUserRequestDto --> Role
+CreateUserRequestDto --> EmployeeStatus
+
 @enduml
 ```
