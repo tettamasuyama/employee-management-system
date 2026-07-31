@@ -1,5 +1,6 @@
 ```plantuml
 @startuml
+title ユーザー登録処理クラス図
 
 class AuthController {
   - AuthService authService
@@ -8,9 +9,11 @@ class AuthController {
 
 note right of AuthController
 ユーザー新規登録APIを担当するController。
-登録情報をAuthServiceへ渡し、
-ログインユーザー情報と社員情報の
-新規登録処理を行う。
+
+フロントから登録情報を受け取り、
+AuthServiceへ登録処理を依頼する。
+
+登録結果をフロントへ返却する。
 end note
 
 
@@ -28,15 +31,12 @@ class CreateUserRequestDto {
 }
 
 note right of CreateUserRequestDto
-ユーザー新規登録時のリクエストDTO。
+ユーザー登録時のリクエストDTO。
 
-loginEmailはUsersテーブルの
-ログイン用メールアドレスとして使用する。
+loginEmailはログイン用メールアドレス、
+employeeEmailは社員用メールアドレス。
 
-employeeEmailはEmployeesテーブルの
-社員用メールアドレスとして使用する。
-
-部署と役職は、それぞれのIDを受け取る。
+部署と役職はIDで受け取る。
 end note
 
 
@@ -47,7 +47,9 @@ class AuthResponseDto {
 
 note right of AuthResponseDto
 ユーザー登録成功時のレスポンスDTO。
-JWTトークンとユーザー権限を返却する。
+
+JWTトークンとユーザー権限を
+フロントへ返却する。
 end note
 
 
@@ -65,21 +67,12 @@ class AuthService {
 note right of AuthService
 ユーザー登録処理を担当するService。
 
-ログインメールアドレス、
-社員番号、社員用メールアドレスの
-重複確認を行う。
+メールアドレスや社員番号の重複確認、
+部署・役職の取得、
+パスワードの暗号化を行う。
 
-部署IDと役職IDから、
-対応するマスターデータを取得する。
-
-パスワードを暗号化して
-Usersテーブルへ登録した後、
-発行されたUsers.idを社員情報に関連付ける。
-
-UsersテーブルとEmployeesテーブルへの登録は、
-同一トランザクション内で実行する。
-
-登録成功後にJWTを発行する。
+UserとEmployeeを登録した後、
+JWTを発行して登録結果を返却する。
 end note
 
 
@@ -88,9 +81,7 @@ class JwtProvider {
 }
 
 note right of JwtProvider
-JWTを生成・検証するクラス。
-新規登録時にトークンを作成し、
-Users.idをトークンへ組み込む。
+Users.idを含むJWTを生成する。
 end note
 
 
@@ -100,189 +91,17 @@ interface PasswordEncoder {
 }
 
 note right of PasswordEncoder
-パスワードの暗号化と
-照合を担当する。
+パスワードの暗号化と照合を行う。
 end note
 
 
-class User {
-  - Long id
-  - String email
-  - String password
-  - Role role
-
-  + setEmail(email: String): void
-  + setPassword(password: String): void
-  + setRole(role: Role): void
-}
-
-note right of User
-usersテーブルに対応するEntity。
-
-ログイン認証に必要な
-メールアドレス、パスワード、
-権限を管理する。
-end note
-
-
-class Employee {
-  - Long id
-  - User user
-  - Department department
-  - Position position
-  - String employeeNumber
-  - String name
-  - LocalDate hireDate
-  - EmployeeStatus status
-
-  + setUser(user: User): void
-  + setDepartment(department: Department): void
-  + setPosition(position: Position): void
-  + setEmployeeNumber(employeeNumber: String): void
-  + setName(name: String): void
-  + setHireDate(hireDate: LocalDate): void
-  + setStatus(status: EmployeeStatus): void
-}
-
-note right of Employee
-employeesテーブルに対応するEntity。
-
-User、Department、Positionと関連付け、
-社員番号、氏名、
-入社日、在籍状態を管理する。
-end note
-
-
-class Department {
-  - Long id
-  - String name
-}
-
-note right of Department
-departmentsテーブルに対応するEntity。
-社員が所属する部署情報を管理する。
-end note
-
-
-class Position {
-  - Long id
-  - String name
-}
-
-note right of Position
-positionsテーブルに対応するEntity。
-社員の役職情報を管理する。
-end note
-
-
-interface UserRepository {
-  + findByEmail(email: String): Optional<User>
-  + existsByEmail(email: String): boolean
-  + save(user: User): User
-}
-
-note right of UserRepository
-Userエンティティに対する
-データベース操作を担当する。
-
-ログインメールアドレスの重複確認と、
-ユーザー情報の保存を行う。
-end note
-
-
-interface EmployeeRepository {
-  + existsByEmployeeNumber(employeeNumber: String): boolean
-  + save(employee: Employee): Employee
-}
-
-note right of EmployeeRepository
-Employeeエンティティに対する
-データベース操作を担当する。
-
-社員番号と社員用メールアドレスの
-重複確認、および社員情報の保存を行う。
-end note
-
-
-interface DepartmentRepository {
-  + findById(id: Long): Optional<Department>
-}
-
-note right of DepartmentRepository
-Departmentエンティティに対する
-データベース操作を担当する。
-
-指定された部署IDに対応する
-部署情報を取得する。
-end note
-
-
-interface PositionRepository {
-  + findById(id: Long): Optional<Position>
-}
-
-note right of PositionRepository
-Positionエンティティに対する
-データベース操作を担当する。
-
-指定された役職IDに対応する
-役職情報を取得する。
-end note
-
-
-enum Role {
-  EMPLOYEE
-  ADMIN
-}
-
-note right of Role
-ユーザー権限を表す列挙型。
-
-データベースには、
-EMPLOYEEを0、
-ADMINを1として保存する。
-end note
-
-
-enum EmployeeStatus {
-  ACTIVE
-  RETIRED
-}
-
-note right of EmployeeStatus
-社員の在籍状態を表す列挙型。
-
-ACTIVEは在籍、
-RETIREDは退職を表す。
-end note
-
-
-AuthController --> CreateUserRequestDto : 登録情報を受け取る
+AuthController --> CreateUserRequestDto : リクエストを受け取る
 AuthController --> AuthService : 登録処理を依頼
-AuthController --> AuthResponseDto : 登録結果を返却
+AuthService --> AuthResponseDto : 登録結果を生成
+AuthController --> AuthResponseDto : フロントへ返却
 
-AuthService --> UserRepository : ログイン情報を保存
-AuthService --> EmployeeRepository : 社員情報を保存
-AuthService --> DepartmentRepository : 部署情報を取得
-AuthService --> PositionRepository : 役職情報を取得
 AuthService --> PasswordEncoder : パスワードを暗号化
 AuthService --> JwtProvider : JWTを発行
-AuthService --> AuthResponseDto : レスポンスを生成
-
-UserRepository --> User : Userを操作
-EmployeeRepository --> Employee : Employeeを操作
-DepartmentRepository --> Department : Departmentを操作
-PositionRepository --> Position : Positionを操作
-
-Employee --> User : user_idで関連付け
-Employee --> Department : department_idDで関連付け
-Employee --> Position : position_idで関連付け
-
-User --> Role
-Employee --> EmployeeStatus
-AuthResponseDto --> Role
-CreateUserRequestDto --> Role
-CreateUserRequestDto --> EmployeeStatus
 
 @enduml
 ```

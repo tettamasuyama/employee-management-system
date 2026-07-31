@@ -1,0 +1,176 @@
+@startuml
+title ログインユーザー自身の情報取得・更新クラス図
+
+class EmployeeMeController {
+  - EmployeeService employeeService
+
+  + getMe(userId: Long): EmployeeMeResponseDto
+  + updateMe(
+      userId: Long,
+      request: EmployeeMeUpdateRequestDto
+    ): EmployeeMeResponseDto
+}
+
+note right of EmployeeMeController
+ログインユーザー自身の
+社員情報取得・更新APIを担当するController。
+
+JWTから取得したUsers.idを使用し、
+EmployeeServiceへ処理を依頼する。
+
+取得結果・更新結果を
+フロントへ返却する。
+end note
+
+
+class EmployeeMeUpdateRequestDto {
+  - String name
+  - String employeeEmail
+}
+
+note right of EmployeeMeUpdateRequestDto
+社員本人が更新できる情報を保持するDTO。
+
+更新できる項目は
+氏名と社員用メールアドレスのみ。
+
+ログイン用メールアドレス
+(User.email)は変更しない。
+end note
+
+
+class EmployeeMeResponseDto {
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - String departmentName
+  - String positionName
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of EmployeeMeResponseDto
+社員本人へ返却するDTO。
+
+社員情報・部署名・役職名を
+フロントへ返却する。
+end note
+
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+
+  + getMe(userId: Long): EmployeeMeResponseDto
+
+  + updateMe(
+      userId: Long,
+      request: EmployeeMeUpdateRequestDto
+    ): EmployeeMeResponseDto
+}
+
+note right of EmployeeService
+JWTに含まれるUsers.idを使用して
+Employees.user_idに一致する社員を取得する。
+
+本人更新では
+氏名と社員用メールアドレスのみ変更する。
+
+更新後のEmployeeを保存し、
+EmployeeMeResponseDtoへ変換する。
+end note
+
+
+interface EmployeeRepository {
+  + findByUserId(userId: Long): Optional<Employee>
+  + existsByEmail(email: String): boolean
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+Users.idに対応する社員情報を取得し、
+社員用メールアドレスの重複確認、
+更新情報を保存する。
+end note
+
+
+class Employee {
+  - Long id
+  - User user
+  - String employeeNumber
+  - String name
+  - String email
+  - Department department
+  - Position position
+  - LocalDate hireDate
+  - EmployeeStatus status
+
+  + setName(name: String): void
+  + setEmail(email: String): void
+}
+
+note right of Employee
+employeesテーブルに対応するEntity。
+
+社員本人は
+氏名と社員用メールアドレスのみ
+変更できる。
+end note
+
+
+class User {
+  - Long id
+  - String email
+}
+
+note right of User
+usersテーブルに対応するEntity。
+
+JWTに格納されるUsers.idと
+ログイン用メールアドレスを保持する。
+
+User.emailは本人更新では変更しない。
+end note
+
+
+class Department {
+  - Long id
+  - String name
+}
+
+class Position {
+  - Long id
+  - String name
+}
+
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVE：在籍
+RETIRED：退職
+end note
+
+
+EmployeeMeController --> EmployeeMeUpdateRequestDto : 更新情報を受け取る
+EmployeeMeController --> EmployeeService : 取得・更新処理を依頼
+
+EmployeeService --> EmployeeRepository : user_idで社員を検索・更新
+EmployeeRepository --> Employee : Employeeを操作
+
+EmployeeService --> EmployeeMeResponseDto : レスポンスを生成
+EmployeeMeController --> EmployeeMeResponseDto : フロントへ返却
+
+Employee "1" --> "1" User : user_id
+Employee "*" --> "1" Department : department_id
+Employee "*" --> "1" Position : position_id
+Employee --> EmployeeStatus : 在籍状態を保持
+
+@enduml

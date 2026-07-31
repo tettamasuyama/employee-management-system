@@ -1,0 +1,229 @@
+@startuml
+title 社員更新処理クラス図
+
+class EmployeeController {
+  - EmployeeService employeeService
+
+  + updateEmployee(
+      id: Long,
+      request: EmployeeUpdateRequestDto
+    ): EmployeeResponseDto
+}
+
+note right of EmployeeController
+社員更新APIを担当するController。
+
+更新対象のEmployees.idと
+更新内容をフロントから受け取り、
+EmployeeServiceへ更新処理を依頼する。
+
+更新結果をフロントへ返却する。
+end note
+
+
+class EmployeeUpdateRequestDto {
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - Long departmentId
+  - Long positionId
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of EmployeeUpdateRequestDto
+管理者が社員情報を更新するときの
+リクエストDTO。
+
+更新対象の社員はEmployees.idで指定する。
+
+部署と役職は、それぞれのIDを受け取る。
+employeeEmailはEmployees.emailを更新する。
+end note
+
+
+class EmployeeResponseDto {
+  - Long id
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - Long departmentId
+  - String departmentName
+  - Long positionId
+  - String positionName
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of EmployeeResponseDto
+社員更新成功時にフロントへ返すDTO。
+
+更新後の社員情報と、
+部署名・役職名を保持する。
+end note
+
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+  - DepartmentRepository departmentRepository
+  - PositionRepository positionRepository
+
+  + updateEmployee(
+      id: Long,
+      request: EmployeeUpdateRequestDto
+    ): EmployeeResponseDto
+}
+
+note right of EmployeeService
+社員更新処理を担当するService。
+
+Employees.idから更新対象を取得する。
+
+部署IDと役職IDから、
+DepartmentとPositionを取得して
+Employeeへ設定する。
+
+社員番号と社員用メールアドレスの
+重複確認を行う。
+
+Employee.emailを更新しても、
+User.emailは変更しない。
+
+更新後のEmployeeを保存し、
+EmployeeResponseDtoへ変換する。
+end note
+
+
+interface EmployeeRepository {
+  + findById(id: Long): Optional<Employee>
+  + existsByEmployeeNumber(employeeNumber: String): boolean
+  + existsByEmail(email: String): boolean
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+更新対象の取得、
+社員番号・社員用メールアドレスの
+重複確認、更新情報の保存を行う。
+end note
+
+
+interface DepartmentRepository {
+  + findById(id: Long): Optional<Department>
+}
+
+note right of DepartmentRepository
+指定された部署IDに対応する
+Departmentを取得する。
+end note
+
+
+interface PositionRepository {
+  + findById(id: Long): Optional<Position>
+}
+
+note right of PositionRepository
+指定された役職IDに対応する
+Positionを取得する。
+end note
+
+
+class Employee {
+  - Long id
+  - User user
+  - Department department
+  - Position position
+  - String employeeNumber
+  - String name
+  - String email
+  - LocalDate hireDate
+  - EmployeeStatus status
+
+  + setEmployeeNumber(employeeNumber: String): void
+  + setName(name: String): void
+  + setEmail(email: String): void
+  + setDepartment(department: Department): void
+  + setPosition(position: Position): void
+  + setHireDate(hireDate: LocalDate): void
+  + setStatus(status: EmployeeStatus): void
+}
+
+note right of Employee
+employeesテーブルに対応するEntity。
+
+更新後の社員番号、氏名、
+社員用メールアドレス、部署、役職、
+入社日、在籍状態を保持する。
+end note
+
+
+class User {
+  - Long id
+  - String email
+}
+
+note right of User
+usersテーブルに対応するEntity。
+
+User.emailはログイン用メールアドレスであり、
+社員更新処理では変更しない。
+end note
+
+
+class Department {
+  - Long id
+  - String name
+}
+
+note right of Department
+departmentsテーブルに対応するEntity。
+部署情報を管理する。
+end note
+
+
+class Position {
+  - Long id
+  - String name
+}
+
+note right of Position
+positionsテーブルに対応するEntity。
+役職情報を管理する。
+end note
+
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVE：在籍
+RETIRED：退職
+end note
+
+
+EmployeeController --> EmployeeUpdateRequestDto : 更新情報を受け取る
+EmployeeController --> EmployeeService : 更新処理を依頼
+EmployeeService --> EmployeeResponseDto : 更新結果を生成
+EmployeeController --> EmployeeResponseDto : フロントへ返却
+
+EmployeeService --> EmployeeRepository : 社員を取得・保存
+EmployeeService --> DepartmentRepository : 部署を取得
+EmployeeService --> PositionRepository : 役職を取得
+
+EmployeeRepository --> Employee : Employeeを操作
+DepartmentRepository --> Department : Departmentを操作
+PositionRepository --> Position : Positionを操作
+
+Employee "1" --> "1" User : user_id
+Employee "*" --> "1" Department : department_id
+Employee "*" --> "1" Position : position_id
+Employee --> EmployeeStatus : 在籍状態を保持
+
+@enduml

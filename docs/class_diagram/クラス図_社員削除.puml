@@ -1,0 +1,115 @@
+@startuml
+title 社員削除処理クラス図
+
+class EmployeeController {
+  - EmployeeService employeeService
+
+  + deleteEmployee(id: Long): void
+}
+
+note right of EmployeeController
+社員削除APIを担当するController。
+
+削除対象のEmployees.idを受け取り、
+EmployeeServiceへ削除処理を依頼する。
+end note
+
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+  - UserRepository userRepository
+
+  + deleteEmployee(id: Long): void
+}
+
+note right of EmployeeService
+社員削除処理を担当するService。
+
+Employees.idから社員情報を取得し、
+関連するUserを確認する。
+
+EmployeeとUserは
+同一トランザクション内で削除する。
+end note
+
+
+interface EmployeeRepository {
+  + findById(id: Long): Optional<Employee>
+  + delete(employee: Employee): void
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+削除対象の社員取得、
+社員情報の削除を行う。
+end note
+
+
+interface UserRepository {
+  + delete(user: User): void
+}
+
+note right of UserRepository
+Userエンティティに対する
+データベース操作を担当する。
+
+関連するログインユーザーを削除する。
+end note
+
+
+class Employee {
+  - Long id
+  - User user
+  - String employeeNumber
+  - String name
+}
+
+note right of Employee
+employeesテーブルに対応するEntity。
+
+Userと関連付けられた
+社員情報を保持する。
+end note
+
+
+class User {
+  - Long id
+  - String email
+  - String password
+  - Role role
+}
+
+note right of User
+usersテーブルに対応するEntity。
+
+ログイン情報を保持する。
+end note
+
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
+note right of Role
+ユーザー権限を表す列挙型。
+
+EMPLOYEE：0
+ADMIN：1
+end note
+
+
+EmployeeController --> EmployeeService : 削除処理を依頼
+
+EmployeeService --> EmployeeRepository : 社員を取得・削除
+EmployeeService --> UserRepository : Userを削除
+
+EmployeeRepository --> Employee : Employeeを操作
+UserRepository --> User : Userを操作
+
+Employee "1" --> "1" User : user_id
+User --> Role : 権限を保持
+
+@enduml

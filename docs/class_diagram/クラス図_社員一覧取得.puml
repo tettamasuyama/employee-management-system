@@ -1,0 +1,131 @@
+@startuml
+title 社員一覧取得クラス図
+
+class EmployeeController {
+  - EmployeeService employeeService
+  + getEmployees(): List<EmployeeResponseDto>
+}
+
+note right of EmployeeController
+社員一覧取得APIを担当するController。
+
+EmployeeServiceへ一覧取得処理を依頼し、
+取得結果をフロントへ返却する。
+end note
+
+
+class EmployeeService {
+  - EmployeeRepository employeeRepository
+
+  + getEmployees(): List<EmployeeResponseDto>
+}
+
+note right of EmployeeService
+社員一覧取得処理を担当するService。
+
+EmployeeRepositoryから社員情報を取得し、
+EmployeeResponseDtoへ変換して返却する。
+end note
+
+
+interface EmployeeRepository {
+  + findAll(): List<Employee>
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+社員一覧を取得する。
+end note
+
+
+class EmployeeResponseDto {
+  - Long id
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - Long departmentId
+  - String departmentName
+  - Long positionId
+  - String positionName
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of EmployeeResponseDto
+社員一覧画面へ返却するDTO。
+
+部署名・役職名を含む
+社員情報をフロントへ返却する。
+end note
+
+
+class Employee {
+  - Long id
+  - String employeeNumber
+  - String name
+  - String email
+  - Department department
+  - Position position
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of Employee
+employeesテーブルに対応するEntity。
+
+Department・Positionと関連付けられた
+社員情報を保持する。
+end note
+
+
+class Department {
+  - Long id
+  - String name
+}
+
+note right of Department
+departmentsテーブルに対応するEntity。
+
+部署情報を管理する。
+end note
+
+
+class Position {
+  - Long id
+  - String name
+}
+
+note right of Position
+positionsテーブルに対応するEntity。
+
+役職情報を管理する。
+end note
+
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVE：在籍
+RETIRED：退職
+end note
+
+
+EmployeeController --> EmployeeService : 一覧取得を依頼
+EmployeeService --> EmployeeRepository : 社員一覧を取得
+EmployeeRepository --> Employee : Employeeを操作
+
+EmployeeService --> EmployeeResponseDto : 一覧データを生成
+EmployeeController --> EmployeeResponseDto : フロントへ返却
+
+Employee "*" --> "1" Department : department_id
+Employee "*" --> "1" Position : position_id
+Employee --> EmployeeStatus : 在籍状態を保持
+
+@enduml

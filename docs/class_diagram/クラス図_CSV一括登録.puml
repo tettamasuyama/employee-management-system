@@ -1,0 +1,194 @@
+@startuml
+title CSV一括登録処理クラス図
+
+class EmployeeImportController {
+  - EmployeeImportService employeeImportService
+
+  + importCsv(file: MultipartFile): CsvImportResponseDto
+}
+
+note right of EmployeeImportController
+CSVファイルのアップロードを受け付けるController。
+
+受け取ったCSVファイルを
+EmployeeImportServiceへ渡し、
+処理結果をフロントへ返却する。
+end note
+
+
+class EmployeeImportService {
+  - EmployeeRepository employeeRepository
+  - UserRepository userRepository
+  - DepartmentRepository departmentRepository
+  - PositionRepository positionRepository
+  - CsvEmployeeMapper csvEmployeeMapper
+
+  + importCsv(file: MultipartFile): CsvImportResponseDto
+}
+
+note right of EmployeeImportService
+CSV一括登録・更新処理を担当するService。
+
+CSVを1行ずつ読み込み、
+社員番号を基に新規登録または更新を判定する。
+
+部署名・役職名から
+DepartmentとPositionを取得する。
+
+処理結果を
+CsvImportResponseDtoへまとめる。
+end note
+
+
+class CsvEmployeeMapper {
+  + parse(file: MultipartFile): List<CsvEmployeeRowDto>
+}
+
+note right of CsvEmployeeMapper
+CSVファイルを読み込み、
+1行ずつCsvEmployeeRowDtoへ変換する。
+end note
+
+
+class CsvEmployeeRowDto {
+  - Long userId
+  - String employeeNumber
+  - String name
+  - String employeeEmail
+  - String departmentName
+  - String positionName
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+note right of CsvEmployeeRowDto
+CSVの1行分のデータを保持するDTO。
+end note
+
+
+class CsvImportResponseDto {
+  - int totalCount
+  - int successCount
+  - int failureCount
+  - List<String> errorMessages
+}
+
+note right of CsvImportResponseDto
+CSV処理結果をフロントへ返却するDTO。
+
+総件数、
+成功件数、
+失敗件数、
+エラーメッセージを保持する。
+end note
+
+
+interface EmployeeRepository {
+  + findByEmployeeNumber(employeeNumber:String): Optional<Employee>
+  + existsByEmail(email:String): boolean
+  + save(employee:Employee): Employee
+}
+
+note right of EmployeeRepository
+Employeeエンティティに対する
+データベース操作を担当する。
+
+社員番号による検索、
+社員情報の保存を行う。
+end note
+
+
+interface UserRepository {
+  + findById(id:Long): Optional<User>
+}
+
+note right of UserRepository
+CSV内のuserIdに対応する
+Userを取得する。
+end note
+
+
+interface DepartmentRepository {
+  + findByName(name:String): Optional<Department>
+}
+
+note right of DepartmentRepository
+部署名から
+Departmentを取得する。
+end note
+
+
+interface PositionRepository {
+  + findByName(name:String): Optional<Position>
+}
+
+note right of PositionRepository
+役職名から
+Positionを取得する。
+end note
+
+
+class Employee {
+  - Long id
+  - User user
+  - String employeeNumber
+  - String name
+  - String email
+  - Department department
+  - Position position
+  - LocalDate hireDate
+  - EmployeeStatus status
+}
+
+class User {
+  - Long id
+  - String email
+}
+
+class Department {
+  - Long id
+  - String name
+}
+
+class Position {
+  - Long id
+  - String name
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVE：在籍
+RETIRED：退職
+end note
+
+
+EmployeeImportController --> EmployeeImportService : CSV処理を依頼
+
+EmployeeImportService --> CsvEmployeeMapper : CSVを読み込む
+CsvEmployeeMapper --> CsvEmployeeRowDto : CSVを変換
+
+EmployeeImportService --> UserRepository : Userを取得
+EmployeeImportService --> EmployeeRepository : Employeeを検索・保存
+EmployeeImportService --> DepartmentRepository : 部署を取得
+EmployeeImportService --> PositionRepository : 役職を取得
+
+EmployeeImportService --> CsvImportResponseDto : 処理結果を生成
+EmployeeImportController --> CsvImportResponseDto : フロントへ返却
+
+EmployeeRepository --> Employee : Employeeを操作
+UserRepository --> User : Userを操作
+DepartmentRepository --> Department : Departmentを操作
+PositionRepository --> Position : Positionを操作
+
+Employee "1" --> "1" User : user_id
+Employee "*" --> "1" Department : department_id
+Employee "*" --> "1" Position : position_id
+Employee --> EmployeeStatus : 在籍状態を保持
+
+@enduml

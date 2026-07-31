@@ -1,0 +1,81 @@
+```plantuml
+@startuml
+title Repositoryクラス図
+
+class AuthService {
+  - UserRepository userRepository
+  - EmployeeRepository employeeRepository
+  - DepartmentRepository departmentRepository
+  - PositionRepository positionRepository
+
+  + register(request: CreateUserRequestDto): AuthResponseDto
+}
+
+
+interface UserRepository {
+  + findByEmail(email: String): Optional<User>
+  + existsByEmail(email: String): boolean
+  + save(user: User): User
+}
+
+note right of UserRepository
+ログインメールアドレスによる検索、
+重複確認、Userの保存を行う。
+end note
+
+
+interface EmployeeRepository {
+  + existsByEmployeeNumber(employeeNumber: String): boolean
+  + existsByEmail(email: String): boolean
+  + save(employee: Employee): Employee
+}
+
+note right of EmployeeRepository
+社員番号と社員用メールアドレスの
+重複確認、Employeeの保存を行う。
+end note
+
+
+interface DepartmentRepository {
+  + findById(id: Long): Optional<Department>
+}
+
+note right of DepartmentRepository
+部署IDに対応する
+Departmentを取得する。
+end note
+
+
+interface PositionRepository {
+  + findById(id: Long): Optional<Position>
+}
+
+note right of PositionRepository
+役職IDに対応する
+Positionを取得する。
+end note
+
+
+class User
+class Employee
+class Department
+class Position
+class CreateUserRequestDto
+class AuthResponseDto
+
+
+AuthService --> UserRepository : Userを登録
+AuthService --> EmployeeRepository : Employeeを登録
+AuthService --> DepartmentRepository : 部署を取得
+AuthService --> PositionRepository : 役職を取得
+
+UserRepository --> User : 操作対象
+EmployeeRepository --> Employee : 操作対象
+DepartmentRepository --> Department : 操作対象
+PositionRepository --> Position : 操作対象
+
+AuthService ..> CreateUserRequestDto : 登録情報を利用
+AuthService ..> AuthResponseDto : 登録結果を生成
+
+@enduml
+```

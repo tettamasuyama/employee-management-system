@@ -1,0 +1,112 @@
+```plantuml
+@startuml
+title Entityクラス図
+
+class User {
+  - Long id
+  - String email
+  - String password
+  - Role role
+
+  + setEmail(email: String): void
+  + setPassword(password: String): void
+  + setRole(role: Role): void
+}
+
+note right of User
+usersテーブルに対応するEntity。
+
+ログイン用メールアドレス、
+パスワード、権限を管理する。
+end note
+
+
+class Employee {
+  - Long id
+  - User user
+  - Department department
+  - Position position
+  - String employeeNumber
+  - String name
+  - String email
+  - LocalDate hireDate
+  - EmployeeStatus status
+
+  + setUser(user: User): void
+  + setDepartment(department: Department): void
+  + setPosition(position: Position): void
+  + setEmployeeNumber(employeeNumber: String): void
+  + setName(name: String): void
+  + setEmail(email: String): void
+  + setHireDate(hireDate: LocalDate): void
+  + setStatus(status: EmployeeStatus): void
+}
+
+note right of Employee
+employeesテーブルに対応するEntity。
+
+社員番号、氏名、社員用メールアドレス、
+部署、役職、入社日、在籍状態を管理する。
+
+Employee.emailを変更しても、
+User.emailは変更されない。
+end note
+
+
+class Department {
+  - Long id
+  - String name
+}
+
+note right of Department
+departmentsテーブルに対応するEntity。
+部署情報を管理する。
+end note
+
+
+class Position {
+  - Long id
+  - String name
+}
+
+note right of Position
+positionsテーブルに対応するEntity。
+役職情報を管理する。
+end note
+
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
+note right of Role
+ユーザー権限を表す列挙型。
+
+EMPLOYEEは0、
+ADMINは1として保存する。
+end note
+
+
+enum EmployeeStatus {
+  ACTIVE
+  RETIRED
+}
+
+note right of EmployeeStatus
+社員の在籍状態を表す列挙型。
+
+ACTIVEは在籍、
+RETIREDは退職を表す。
+end note
+
+
+Employee "1" --> "1" User : user_id
+Employee "*" --> "1" Department : department_id
+Employee "*" --> "1" Position : position_id
+
+User --> Role : 権限を保持
+Employee --> EmployeeStatus : 在籍状態を保持
+
+@enduml
+```

@@ -1,25 +1,21 @@
 @startuml
+title ログイン処理クラス図
 
 class AuthController {
   - AuthService authService
-  + login(authRequestDto: AuthRequestDto): AuthResponseDto
+  + login(request: LoginRequestDto): AuthResponseDto
 }
 
-note right of AuthController
-ログインAPIを担当するController。
-入力された認証情報をAuthServiceへ渡し、
-ログイン認証処理を行う。
-end note
-
-class AuthRequestDto {
-  - String email
+class LoginRequestDto {
+  - String loginEmail
   - String password
 }
 
-note right of AuthRequestDto
-ログイン時のリクエストDTO。
-メールアドレスと
-パスワードを受け取る。
+note right of LoginRequestDto
+ログイン時にフロントから受け取るDTO。
+
+loginEmailはUsersテーブルの
+ログイン用メールアドレスとして使用する。
 end note
 
 class AuthResponseDto {
@@ -28,10 +24,9 @@ class AuthResponseDto {
 }
 
 note right of AuthResponseDto
-ログイン成功時の
-レスポンスDTO。
-JWTトークンと
-ユーザー権限を返却する。
+ログイン成功時にフロントへ返すDTO。
+
+JWTトークンとユーザー権限を保持する。
 end note
 
 class AuthService {
@@ -39,25 +34,22 @@ class AuthService {
   - PasswordEncoder passwordEncoder
   - JwtProvider jwtProvider
 
-  + authenticate(email:String,password:String):AuthResponseDto
+  + login(request: LoginRequestDto): AuthResponseDto
 }
 
 note right of AuthService
-ログイン認証処理を担当するService。
-メールアドレス検索、
-パスワード照合、
-JWTトークン生成を行う。
+ログイン処理を担当するService。
+
+ログインメールアドレスからUserを取得し、
+入力されたパスワードを照合する。
+
+認証成功後、
+Users.idを使用してJWTを発行する。
 end note
 
-class UserRepository {
-  + findByEmail(email:String):Optional<User>
+interface UserRepository {
+  + findByEmail(email: String): Optional<User>
 }
-
-note right of UserRepository
-Userエンティティに対する
-データベース操作を担当するRepository。
-ユーザー情報の検索を行う。
-end note
 
 class User {
   - Long id
@@ -66,54 +58,32 @@ class User {
   - Role role
 }
 
-note right of User
-ユーザー情報を保持するEntity。
-usersテーブルに対応し、
-認証に必要な情報を管理する。
-end note
+interface PasswordEncoder {
+  + matches(rawPassword: String, encodedPassword: String): boolean
+}
 
 class JwtProvider {
-  + generateToken(userId:Long):String
+  + generateToken(userId: Long): String
 }
-
-note right of JwtProvider
-JWTを生成・検証するクラス。
-ログイン時にトークンを作成し、
-ユーザーIDを組み込む。
-end note
-
-interface PasswordEncoder {
-  + encode(password:String):String
-  + matches(rawPassword:String,encodedPassword:String):boolean
-}
-
-note right of PasswordEncoder
-パスワードの暗号化と
-照合を担当する。
-end note
 
 enum Role {
-  ADMIN
   EMPLOYEE
+  ADMIN
 }
 
-note right of Role
-ユーザー権限を表す列挙型。
-管理者(ADMIN)、
-社員(EMPLOYEE)を管理する。
-end note
+AuthController --> LoginRequestDto : ログイン情報を受け取る
+AuthController --> AuthService : ログイン処理を依頼
 
-AuthController --> AuthService
-AuthController --> AuthRequestDto
-AuthController --> AuthResponseDto
+AuthService --> UserRepository : Userを検索
+UserRepository --> User : 検索対象
 
-AuthService --> UserRepository
-AuthService --> PasswordEncoder
-AuthService --> JwtProvider
-AuthService --> User
+AuthService --> PasswordEncoder : パスワードを照合
+AuthService --> JwtProvider : JWTを発行
 
-UserRepository --> User
-User --> Role
-AuthResponseDto --> Role
+AuthService --> AuthResponseDto : ログイン結果を生成
+AuthController --> AuthResponseDto : フロントへ返却
+
+User --> Role : 権限を保持
+AuthResponseDto --> Role : 権限を返却
 
 @enduml
