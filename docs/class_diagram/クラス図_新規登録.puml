@@ -132,7 +132,6 @@ class Employee {
   - Position position
   - String employeeNumber
   - String name
-  - String email
   - LocalDate hireDate
   - EmployeeStatus status
 
@@ -141,7 +140,6 @@ class Employee {
   + setPosition(position: Position): void
   + setEmployeeNumber(employeeNumber: String): void
   + setName(name: String): void
-  + setEmail(email: String): void
   + setHireDate(hireDate: LocalDate): void
   + setStatus(status: EmployeeStatus): void
 }
@@ -150,7 +148,7 @@ note right of Employee
 employeesテーブルに対応するEntity。
 
 User、Department、Positionと関連付け、
-社員番号、氏名、社員用メールアドレス、
+社員番号、氏名、
 入社日、在籍状態を管理する。
 end note
 
