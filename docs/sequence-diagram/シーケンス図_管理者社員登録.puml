@@ -4,122 +4,297 @@ title 管理者による社員新規登録シーケンス図
 actor 管理者
 boundary React as Frontend
 control EmployeeController
+entity EmployeeCreateRequestDto
+control GlobalExceptionHandler
 control EmployeeService
 entity UserRepository
 entity EmployeeRepository
 entity DepartmentRepository
 entity PositionRepository
-control PasswordEncoder
-database PostgreSQL
+
 
 管理者 -> Frontend : 社員情報を入力
 
 Frontend -> EmployeeController : POST /api/employees\nEmployeeCreateRequestDto
 
-EmployeeController -> EmployeeService : createEmployee(request)
 
-note right of EmployeeService
-登録内容
-・loginEmail
-・password
-・role
-・employeeNumber
-・name
-・employeeEmail
-・departmentId
-・positionId
-・hireDate
-・status
+== DTO入力値確認 ==
+
+note over EmployeeController, EmployeeCreateRequestDto
+Spring MVCによりJSONを
+EmployeeCreateRequestDtoへ変換する。
+
+@ValidとBean Validationを利用して
+入力値をチェックする。
+
+例：
+
+@NotBlank
+必須入力チェック
+
+@Email
+メール形式チェック
+
+@Size
+文字数チェック
+
+入力条件に違反した場合は
+MethodArgumentNotValidExceptionが
+発生する。
 end note
 
-== ログインメールアドレス重複確認 ==
 
-EmployeeService -> UserRepository : existsByEmail(loginEmail)
-UserRepository -> PostgreSQL : users.emailを検索
-PostgreSQL --> UserRepository : 検索結果
-UserRepository --> EmployeeService : true / false
+alt DTOの入力値が不正
 
-alt ログインメールアドレスが重複
-    EmployeeService --> EmployeeController : 登録失敗
-    EmployeeController --> Frontend : 409 Conflict
-    Frontend --> 管理者 : 「ログインメールアドレスは既に登録されています」
+    EmployeeCreateRequestDto --> GlobalExceptionHandler : MethodArgumentNotValidException
+
+    note right of GlobalExceptionHandler
+    DTOの入力エラーを
+    共通処理する。
+
+    例：
+
+    ・必須項目未入力
+    ・メール形式不正
+    ・氏名文字数超過
+    ・メールアドレス文字数超過
+
+    HTTPステータスとして
+    400 Bad Requestを返却する。
+    end note
+
+    GlobalExceptionHandler --> Frontend : 400 Bad Request\n入力エラーメッセージ
+    Frontend --> 管理者 : 入力エラーを表示
+
+
+else DTOの入力値が正常
+
+    EmployeeController -> EmployeeService : createEmployee(request)
+
+
+    note right of EmployeeService
+    登録内容
+
+    User
+    ・loginEmail
+    ・role
+
+    Employee
+    ・name
+    ・employeeEmail
+    ・department
+    ・position
+    ・hireDate
+    ・status
+
+    employeeNumberは
+    システム側で自動生成する。
+
+    管理者による社員新規登録では
+    パスワードは登録しない。
+    end note
+
+
+    == ログインメールアドレス重複確認 ==
+
+    EmployeeService -> UserRepository : existsByEmail(loginEmail)
+    UserRepository --> EmployeeService : true / false
+
+
+    alt ログインメールアドレスが重複
+
+        EmployeeService -> EmployeeService : ConflictExceptionをthrow
+
+        note right of EmployeeService
+        ログインメールアドレスが
+        既に登録されている場合は
+        ConflictExceptionをthrowする。
+
+        Service側の
+        ビジネスルールエラーとして扱う。
+        end note
+
+
+    else ログインメールアドレスが未登録
+
+
+        == 社員メールアドレス重複確認 ==
+
+        EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
+        EmployeeRepository --> EmployeeService : true / false
+
+
+        alt 社員メールアドレスが重複
+
+            EmployeeService -> EmployeeService : ConflictExceptionをthrow
+
+        else 社員メールアドレスが未登録
+
+
+            == 部署取得 ==
+
+            EmployeeService -> DepartmentRepository : findById(departmentId)
+            DepartmentRepository --> EmployeeService : Department
+
+
+            == 役職取得 ==
+
+            EmployeeService -> PositionRepository : findById(positionId)
+            PositionRepository --> EmployeeService : Position
+
+
+            note right of EmployeeService
+            部署・役職・在籍状態は
+            フロントエンドで
+            選択形式とする。
+
+            部署
+            → 登録済みDepartmentから選択
+
+            役職
+            → 登録済みPositionから選択
+
+            在籍状態
+            → ACTIVE（在籍）
+            → RETIRED（退職）
+
+            通常操作では
+            選択肢以外の値は
+            送信されない想定とする。
+
+            そのためシーケンス図では
+            部署・役職・在籍状態に対する
+            Service側のエラー分岐は省略する。
+            end note
+
+
+            == 社員番号自動生成 ==
+
+            EmployeeService -> EmployeeRepository : findTopByOrderByEmployeeNumberDesc()
+            EmployeeRepository --> EmployeeService : Employee / null
+
+            EmployeeService -> EmployeeService : generateEmployeeNumber()
+
+            note right of EmployeeService
+            社員番号は管理者に
+            入力させない。
+
+            最後に登録された社員番号を基に
+            次の社員番号を自動生成する。
+            end note
+
+
+            == User生成・登録 ==
+
+            EmployeeService -> EmployeeService : Userを生成\nloginEmail / role
+
+            EmployeeService -> UserRepository : save(user)
+            UserRepository --> EmployeeService : User
+
+            note right of UserRepository
+            Spring Data JPAの
+            save()を利用して
+            Userエンティティを保存する。
+
+            SQLは直接記述しない。
+            end note
+
+
+            == Employee生成・登録 ==
+
+            EmployeeService -> EmployeeService : Employeeを生成
+
+            note right of EmployeeService
+            Employeeへ設定する情報
+
+            ・User
+            ・employeeNumber
+            ・name
+            ・employeeEmail
+            ・Department
+            ・Position
+            ・hireDate
+            ・status
+
+            statusには
+            ACTIVEまたはRETIREDを設定する。
+            end note
+
+            EmployeeService -> EmployeeRepository : save(employee)
+            EmployeeRepository --> EmployeeService : Employee
+
+
+            == レスポンス生成 ==
+
+            EmployeeService -> EmployeeService : EmployeeResponseDtoを生成
+            EmployeeService --> EmployeeController : EmployeeResponseDto
+
+            EmployeeController --> Frontend : 登録成功\nEmployeeResponseDto
+            Frontend --> 管理者 : 登録完了を表示
+
+        end
+    end
 end
 
-== 社員番号重複確認 ==
 
-EmployeeService -> EmployeeRepository : existsByEmployeeNumber(employeeNumber)
-EmployeeRepository -> PostgreSQL : employees.employee_number検索
-PostgreSQL --> EmployeeRepository : 検索結果
-EmployeeRepository --> EmployeeService : true / false
+note over UserRepository, PositionRepository
+Repository層では
+Spring Data JPAを使用する。
 
-alt 社員番号が重複
-    EmployeeService --> EmployeeController : 登録失敗
-    EmployeeController --> Frontend : 409 Conflict
-    Frontend --> 管理者 : 「社員番号は既に登録されています」
-end
+existsByEmail()
+findById()
+save()
+findTopByOrderByEmployeeNumberDesc()
 
-== 社員メールアドレス重複確認 ==
+などのRepositoryメソッドを利用し、
+SQLは直接記述しない。
 
-EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
-EmployeeRepository -> PostgreSQL : employees.email検索
-PostgreSQL --> EmployeeRepository : 検索結果
-EmployeeRepository --> EmployeeService : true / false
-
-alt 社員メールアドレスが重複
-    EmployeeService --> EmployeeController : 登録失敗
-    EmployeeController --> Frontend : 409 Conflict
-    Frontend --> 管理者 : 「社員メールアドレスは既に登録されています」
-end
-
-== 部署取得 ==
-
-EmployeeService -> DepartmentRepository : findById(departmentId)
-DepartmentRepository -> PostgreSQL
-PostgreSQL --> DepartmentRepository : Department
-DepartmentRepository --> EmployeeService : Department
-
-== 役職取得 ==
-
-EmployeeService -> PositionRepository : findById(positionId)
-PositionRepository -> PostgreSQL
-PostgreSQL --> PositionRepository : Position
-PositionRepository --> EmployeeService : Position
-
-== パスワード暗号化 ==
-
-EmployeeService -> PasswordEncoder : encode(password)
-PasswordEncoder --> EmployeeService : hashedPassword
-
-== User登録 ==
-
-EmployeeService -> UserRepository : save(User)
-UserRepository -> PostgreSQL : INSERT users
-PostgreSQL --> UserRepository : 登録済User(id)
-UserRepository --> EmployeeService : User
-
-note right of EmployeeService
-User.idを取得する
+Department・Positionは
+フロントエンドで選択された
+IDを基に取得する。
 end note
 
-== Employee登録 ==
 
-EmployeeService -> EmployeeRepository : save(Employee)
-note right of EmployeeRepository
-Employee.user = 登録したUser
-Department設定
-Position設定
+note over EmployeeCreateRequestDto, GlobalExceptionHandler
+DTO入力エラーと
+Serviceのビジネスルールエラーは
+役割を分ける。
+
+【DTO入力エラー】
+
+@NotBlank
+@Email
+@Size
+   |
+   v
+MethodArgumentNotValidException
+   |
+   v
+GlobalExceptionHandler
+   |
+   v
+400 Bad Request
+
+
+【Service業務エラー】
+
+ログインメールアドレス重複
+社員メールアドレス重複
+   |
+   v
+ConflictException
+
+
+【選択形式】
+
+部署
+役職
+在籍状態
+
+はフロントエンドで
+選択肢を制限するため、
+シーケンス図では
+異常系の分岐を省略する。
 end note
-
-EmployeeRepository -> PostgreSQL : INSERT employees
-PostgreSQL --> EmployeeRepository : 登録済Employee
-EmployeeRepository --> EmployeeService : Employee
-
-== レスポンス生成 ==
-
-EmployeeService --> EmployeeController : EmployeeResponseDto
-
-EmployeeController --> Frontend : 201 Created
-
-Frontend --> 管理者 : 登録完了画面を表示
 
 @enduml

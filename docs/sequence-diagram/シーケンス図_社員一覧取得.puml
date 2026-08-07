@@ -6,7 +6,7 @@ boundary React as Frontend
 control EmployeeController
 control EmployeeService
 entity EmployeeRepository
-database PostgreSQL
+
 
 管理者 -> Frontend : 社員一覧画面を開く
 
@@ -16,24 +16,61 @@ EmployeeController -> EmployeeService : getEmployeeList()
 
 EmployeeService -> EmployeeRepository : findAll()
 
-EmployeeRepository -> PostgreSQL : SELECT employees\nJOIN departments\nJOIN positions
-
-PostgreSQL --> EmployeeRepository : 社員一覧
-
 EmployeeRepository --> EmployeeService : List<Employee>
 
+
 note right of EmployeeService
-Employeeを
+取得したEmployeeを
 EmployeeResponseDtoへ変換する。
 
-部署名・役職名も
+Employeeに関連付けられている
+Department・Positionから
+
+・部署名
+・役職名
+
+を取得して
 レスポンスへ設定する。
 end note
 
+
+EmployeeService -> EmployeeService : List<EmployeeResponseDto>へ変換
+
 EmployeeService --> EmployeeController : List<EmployeeResponseDto>
 
-EmployeeController --> Frontend : 200 OK\n社員一覧
+EmployeeController --> Frontend : 取得成功\n社員一覧
 
-Frontend --> 管理者 : 一覧画面を表示
+Frontend --> 管理者 : 社員一覧画面を表示
+
+
+note over EmployeeRepository
+EmployeeRepositoryでは
+Spring Data JPAを使用する。
+
+findAll()を利用して
+Employee一覧を取得する。
+
+SQLやJOIN文は
+シーケンス図には直接記述しない。
+
+Department・Positionとの関連は
+Entityの関連付けを利用する。
+end note
+
+
+note over EmployeeController, EmployeeService
+この処理はGETによる
+一覧取得処理のため、
+
+Request DTOの
+Bean Validationは使用しない。
+
+@NotBlank
+@Email
+@Size
+
+などの入力チェック処理は
+発生しない。
+end note
 
 @enduml

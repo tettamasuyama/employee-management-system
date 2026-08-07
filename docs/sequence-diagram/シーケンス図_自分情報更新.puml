@@ -5,12 +5,12 @@ actor 社員
 boundary React as Frontend
 control JwtFilter
 control EmployeeMeController
+entity EmployeeMeUpdateRequestDto
+control GlobalExceptionHandler
 control EmployeeService
 entity EmployeeRepository
-database PostgreSQL
 
 社員 -> Frontend : 氏名・社員メールアドレスを入力
-Frontend -> Frontend : 入力内容を確認
 
 note right of Frontend
 本人が更新できる項目は
@@ -22,6 +22,7 @@ note right of Frontend
 社員メールアドレスは
 Employees.emailを表す。
 end note
+
 
 Frontend -> JwtFilter : PUT /api/employees/me\nAuthorization: Bearer JWT\nEmployeeMeUpdateRequestDto
 
@@ -37,90 +38,239 @@ JWTのSubjectには
 JWTには保存しない。
 end note
 
+
 alt JWTが無効または期限切れ
+
     JwtFilter --> Frontend : 401 Unauthorized
     Frontend --> 社員 : 再ログインを促す
 
 else JWTが有効
+
     JwtFilter -> EmployeeMeController : 認証済みリクエスト\nuserIdを引き渡す
 
-    EmployeeMeController -> EmployeeService : updateMe(userId, request)
 
-    note right of EmployeeService
-    Users.idを基に
-    Employees.user_idが一致する
-    Employeeを取得する。
+    == DTO入力値確認 ==
 
-    この処理により、
-    ログイン中の社員本人だけを
-    更新対象にできる。
+    EmployeeMeController -> EmployeeMeUpdateRequestDto : @Validによる入力値チェック
+
+    note right of EmployeeMeUpdateRequestDto
+    Bean Validationを利用して
+    入力値をチェックする。
+
+    例：
+
+    @NotBlank
+    必須入力チェック
+
+    @Email
+    メール形式チェック
+
+    @Size
+    氏名・メールアドレスの
+    文字数チェック
+
+    入力条件に違反した場合は
+    MethodArgumentNotValidExceptionが
+    Springによって発生する。
     end note
 
-    EmployeeService -> EmployeeRepository : findByUserId(userId)
-    EmployeeRepository -> PostgreSQL : SELECT * FROM employees\nWHERE user_id = ?
-    PostgreSQL --> EmployeeRepository : Employee検索結果
-    EmployeeRepository --> EmployeeService : Optional<Employee>
 
-    alt Employeeが存在しない
-        EmployeeService --> EmployeeMeController : 社員情報未登録エラー
-        EmployeeMeController --> Frontend : 404 Not Found
-        Frontend --> 社員 : 社員情報が見つからないことを表示
+    alt DTOの入力値が不正
 
-    else Employeeが存在する
-        EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
-        EmployeeRepository -> PostgreSQL : SELECT EXISTS\nFROM employees\nWHERE email = ?
-        PostgreSQL --> EmployeeRepository : true / false
-        EmployeeRepository --> EmployeeService : true / false
+        EmployeeMeUpdateRequestDto --> GlobalExceptionHandler : MethodArgumentNotValidException
 
-        note right of EmployeeService
-        重複確認の対象は
-        Employees.emailである。
+        note right of GlobalExceptionHandler
+        DTOの入力エラーを
+        共通処理する。
 
-        Users.emailは
-        ログイン用メールアドレスなので
-        この処理では確認・更新しない。
+        例：
+
+        ・氏名未入力
+        ・氏名文字数超過
+        ・社員メールアドレス未入力
+        ・メール形式不正
+        ・メールアドレス文字数超過
+
+        HTTPステータスとして
+        400 Bad Requestを返却する。
         end note
 
-        alt 他の社員が同じメールアドレスを使用している
-            EmployeeService --> EmployeeMeController : メールアドレス重複エラー
-            EmployeeMeController --> Frontend : 409 Conflict
-            Frontend --> 社員 : メールアドレス重複を表示
+        GlobalExceptionHandler --> Frontend : 400 Bad Request\n入力エラーメッセージ
+        Frontend --> 社員 : 入力エラーを表示
 
-        else 更新可能
-            EmployeeService -> EmployeeService : employee.setName(request.name)
-            EmployeeService -> EmployeeService : employee.setEmail(request.employeeEmail)
+
+    else DTOの入力値が正常
+
+        EmployeeMeController -> EmployeeService : updateMe(userId, request)
+
+        note right of EmployeeService
+        Users.idを基に
+        Employees.user_idが一致する
+        Employeeを取得する。
+
+        この処理により、
+        ログイン中の社員本人だけを
+        更新対象にできる。
+        end note
+
+
+        == 本人の社員情報取得 ==
+
+        EmployeeService -> EmployeeRepository : findByUserId(userId)
+        EmployeeRepository --> EmployeeService : Optional<Employee>
+
+
+        alt Employeeが存在しない
+
+            EmployeeService -> EmployeeService : NotFoundExceptionをthrow
 
             note right of EmployeeService
-            更新対象はEmployeeのみ。
+            Users.idに紐づく
+            Employeeが存在しない場合は
+            NotFoundExceptionをthrowする。
 
-            ・Employees.name
-            ・Employees.email
-
-            Users.emailや
-            Users.password、Users.roleは
-            更新しない。
+            Service側の
+            ビジネスルールエラーとして扱う。
             end note
 
-            EmployeeService -> EmployeeRepository : save(employee)
-            EmployeeRepository -> PostgreSQL : UPDATE employees\nSET name = ?, email = ?\nWHERE id = ?
-            PostgreSQL --> EmployeeRepository : 更新済みEmployee
-            EmployeeRepository --> EmployeeService : Employee
 
-            EmployeeService -> EmployeeService : EmployeeMeResponseDtoへ変換
+        else Employeeが存在する
+
+
+            == 社員メールアドレス重複確認 ==
+
+            EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
+            EmployeeRepository --> EmployeeService : true / false
 
             note right of EmployeeService
-            レスポンスには
-            更新後の社員情報を設定する。
+            重複確認の対象は
+            Employees.emailである。
 
-            パスワードなどの認証情報は
-            レスポンスへ含めない。
+            Users.emailは
+            ログイン用メールアドレスなので
+            この処理では確認・更新しない。
             end note
 
-            EmployeeService --> EmployeeMeController : EmployeeMeResponseDto
-            EmployeeMeController --> Frontend : 200 OK\nEmployeeMeResponseDto
-            Frontend --> 社員 : 更新後の情報と\n完了メッセージを表示
+
+            alt 他の社員が同じメールアドレスを使用している
+
+                EmployeeService -> EmployeeService : ConflictExceptionをthrow
+
+                note right of EmployeeService
+                社員メールアドレスが
+                他の社員と重複している場合は
+                ConflictExceptionをthrowする。
+
+                RuntimeExceptionを継承した
+                独自Exceptionを使用する。
+                end note
+
+
+            else 更新可能
+
+
+                == Employee更新 ==
+
+                EmployeeService -> EmployeeService : employee.setName(request.name)
+                EmployeeService -> EmployeeService : employee.setEmail(request.employeeEmail)
+
+                note right of EmployeeService
+                更新対象はEmployeeのみ。
+
+                ・Employees.name
+                ・Employees.email
+
+                Users.email
+                Users.password
+                Users.role
+
+                は更新しない。
+                end note
+
+
+                EmployeeService -> EmployeeRepository : save(employee)
+                EmployeeRepository --> EmployeeService : Employee
+
+                note right of EmployeeRepository
+                Spring Data JPAの
+                save()を利用して
+                Employeeエンティティを更新する。
+
+                SQLは直接記述しない。
+                end note
+
+
+                == レスポンス生成 ==
+
+                EmployeeService -> EmployeeService : EmployeeMeResponseDtoへ変換
+
+                note right of EmployeeService
+                レスポンスには
+                更新後の社員情報を設定する。
+
+                パスワードなどの
+                認証情報は
+                レスポンスへ含めない。
+                end note
+
+                EmployeeService --> EmployeeMeController : EmployeeMeResponseDto
+                EmployeeMeController --> Frontend : 更新成功\nEmployeeMeResponseDto
+                Frontend --> 社員 : 更新後の情報と\n完了メッセージを表示
+
+            end
         end
     end
 end
+
+
+note over EmployeeRepository
+EmployeeRepositoryでは
+Spring Data JPAを使用する。
+
+findByUserId()
+existsByEmail()
+save()
+
+などのRepositoryメソッドを利用し、
+SQLは直接記述しない。
+end note
+
+
+note over EmployeeMeUpdateRequestDto, GlobalExceptionHandler
+DTO入力エラーと
+Serviceのビジネスルールエラーは
+役割を分ける。
+
+【DTO入力エラー】
+
+@NotBlank
+@Email
+@Size
+   |
+   v
+MethodArgumentNotValidException
+   |
+   v
+GlobalExceptionHandler
+   |
+   v
+400 Bad Request
+
+
+【Service業務エラー】
+
+社員情報が存在しない
+   |
+   v
+NotFoundException
+
+社員メールアドレス重複
+   |
+   v
+ConflictException
+
+独自Exceptionは
+RuntimeExceptionを継承する。
+end note
 
 @enduml

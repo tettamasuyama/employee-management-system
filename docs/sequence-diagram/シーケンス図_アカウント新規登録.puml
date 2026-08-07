@@ -1,0 +1,369 @@
+@startuml
+title アカウント新規登録シーケンス図
+
+actor 利用者
+boundary React as Frontend
+control AuthController
+entity RegisterRequestDto
+control GlobalExceptionHandler
+control AuthService
+entity UserRepository
+entity EmployeeRepository
+entity DepartmentRepository
+entity PositionRepository
+control PasswordEncoder
+control JwtProvider
+
+
+利用者 -> Frontend : 新規登録画面を開く
+Frontend --> 利用者 : アカウント登録フォームを表示
+
+利用者 -> Frontend : 登録情報を入力\n管理者または社員を選択
+
+
+note right of Frontend
+入力する情報
+
+・ログインメールアドレス
+・パスワード
+・role
+・氏名
+・社員メールアドレス
+・部署
+・役職
+・入社日
+・在籍状態
+
+社員番号は入力しない。
+
+role
+0：EMPLOYEE
+1：ADMIN
+
+部署・役職・在籍状態・roleは
+フロントエンドで
+選択形式とする。
+end note
+
+
+Frontend -> AuthController : POST /api/auth/register\nRegisterRequestDto
+
+
+== DTO入力値確認 ==
+
+note over AuthController, RegisterRequestDto
+Spring MVCによりJSONを
+RegisterRequestDtoへ変換する。
+
+@ValidとBean Validationを利用して
+入力値をチェックする。
+
+例：
+
+@NotBlank
+必須入力チェック
+
+@Email
+メール形式チェック
+
+@Size
+文字数チェック
+
+入力条件に違反した場合は
+MethodArgumentNotValidExceptionが
+発生する。
+end note
+
+
+alt DTOの入力値が不正
+
+    RegisterRequestDto --> GlobalExceptionHandler : MethodArgumentNotValidException
+
+    note right of GlobalExceptionHandler
+    DTOの入力エラーを
+    共通処理する。
+
+    例：
+
+    ・必須項目未入力
+    ・メール形式不正
+    ・文字数超過
+    ・パスワード文字数不足
+
+    HTTPステータスとして
+    400 Bad Requestを返却する。
+    end note
+
+    GlobalExceptionHandler --> Frontend : 400 Bad Request\n入力エラーメッセージ
+    Frontend --> 利用者 : 入力エラーを表示
+
+
+else DTOの入力値が正常
+
+    AuthController -> AuthService : register(request)
+
+
+    == ログインメールアドレス重複確認 ==
+
+    AuthService -> UserRepository : existsByEmail(loginEmail)
+    UserRepository --> AuthService : true / false
+
+
+    alt ログインメールアドレスが重複
+
+        AuthService -> AuthService : ConflictExceptionをthrow
+
+        note right of AuthService
+        ログインメールアドレスの重複は
+        Serviceで判定する
+        ビジネスルール上のエラー。
+
+        RuntimeExceptionを継承した
+        ConflictExceptionを使用する。
+        end note
+
+
+    else ログインメールアドレスが未登録
+
+
+        == 社員メールアドレス重複確認 ==
+
+        AuthService -> EmployeeRepository : existsByEmail(employeeEmail)
+        EmployeeRepository --> AuthService : true / false
+
+
+        alt 社員メールアドレスが重複
+
+            AuthService -> AuthService : ConflictExceptionをthrow
+
+            note right of AuthService
+            社員メールアドレスの重複も
+            Service側の
+            ビジネスルールとして判定する。
+            end note
+
+
+        else 社員メールアドレスが未登録
+
+
+            == 部署取得 ==
+
+            AuthService -> DepartmentRepository : findById(departmentId)
+            DepartmentRepository --> AuthService : Department
+
+
+            == 役職取得 ==
+
+            AuthService -> PositionRepository : findById(positionId)
+            PositionRepository --> AuthService : Position
+
+
+            note right of AuthService
+            role・部署・役職・在籍状態は
+            フロントエンドで
+            選択形式とする。
+
+            role
+            → EMPLOYEE / ADMIN
+
+            部署
+            → 登録済みDepartmentから選択
+
+            役職
+            → 登録済みPositionから選択
+
+            在籍状態
+            → ACTIVE（在籍）
+            → RETIRED（退職）
+
+            通常操作では
+            選択肢以外の値は
+            送信されない想定とする。
+
+            そのためシーケンス図では
+            これらのService側の
+            異常系分岐は省略する。
+            end note
+
+
+            == 社員番号自動生成 ==
+
+            AuthService -> EmployeeRepository : findTopByOrderByEmployeeNumberDesc()
+            EmployeeRepository --> AuthService : Employee / null
+
+            AuthService -> AuthService : generateEmployeeNumber()
+
+            note right of AuthService
+            社員番号は利用者に
+            入力させない。
+
+            最後に登録された社員番号を基に
+            次の社員番号を自動生成する。
+
+            登録データが存在しない場合
+            00001
+
+            存在する場合
+            最大社員番号 + 1
+            end note
+
+
+            == パスワードハッシュ化 ==
+
+            AuthService -> PasswordEncoder : encode(password)
+            PasswordEncoder --> AuthService : hashedPassword
+
+            note right of PasswordEncoder
+            平文パスワードは保存しない。
+
+            ハッシュ化した値を
+            User.passwordへ設定する。
+            end note
+
+
+            == User生成・登録 ==
+
+            AuthService -> AuthService : Userを生成\nloginEmail / hashedPassword / role
+
+            AuthService -> UserRepository : save(user)
+            UserRepository --> AuthService : User
+
+            note right of UserRepository
+            Spring Data JPAの
+            save()を利用して
+            Userエンティティを保存する。
+
+            SQLは直接記述しない。
+            end note
+
+
+            == Employee生成・登録 ==
+
+            AuthService -> AuthService : Employeeを生成
+
+            note right of AuthService
+            Employeeへ設定する情報
+
+            ・User
+            ・employeeNumber
+            ・name
+            ・employeeEmail
+            ・Department
+            ・Position
+            ・hireDate
+            ・status
+
+            statusには
+            ACTIVEまたはRETIREDを設定する。
+            end note
+
+            AuthService -> EmployeeRepository : save(employee)
+            EmployeeRepository --> AuthService : Employee
+
+            note right of EmployeeRepository
+            Spring Data JPAの
+            save()を利用して
+            Employeeエンティティを保存する。
+
+            保存したUserを
+            Employeeへ関連付ける。
+            end note
+
+
+            == JWT生成 ==
+
+            AuthService -> JwtProvider : generateToken(user.id)
+            JwtProvider --> AuthService : JWT
+
+            note right of JwtProvider
+            JWTのSubjectには
+            Users.idを設定する。
+            end note
+
+
+            == レスポンス生成 ==
+
+            AuthService -> AuthService : AuthResponseDto生成\n(token, role)
+            AuthService --> AuthController : AuthResponseDto
+
+            AuthController --> Frontend : 登録成功\nAuthResponseDto
+
+            Frontend -> Frontend : tokenとroleを保存
+
+
+            alt role = ADMIN
+
+                Frontend -> Frontend : 管理者ページへ遷移
+                Frontend --> 利用者 : 管理者画面を表示
+
+            else role = EMPLOYEE
+
+                Frontend -> Frontend : 社員ページへ遷移
+                Frontend --> 利用者 : 社員画面を表示
+
+            end
+
+        end
+    end
+end
+
+
+note over UserRepository, PositionRepository
+Repository層では
+Spring Data JPAを使用する。
+
+existsByEmail()
+findById()
+save()
+findTopByOrderByEmployeeNumberDesc()
+
+などのRepositoryメソッドを利用し、
+シーケンス図には
+SQLを直接記載しない。
+end note
+
+
+note over RegisterRequestDto, GlobalExceptionHandler
+DTO入力エラーと
+Serviceのビジネスルールエラーは
+役割を分ける。
+
+【DTO入力エラー】
+
+@NotBlank
+@Email
+@Size
+   |
+   v
+MethodArgumentNotValidException
+   |
+   v
+GlobalExceptionHandler
+   |
+   v
+400 Bad Request
+
+
+【Service業務エラー】
+
+ログインメールアドレス重複
+社員メールアドレス重複
+   |
+   v
+ConflictException
+
+
+【選択形式】
+
+role
+部署
+役職
+在籍状態
+
+はフロントエンドで
+選択肢を制限するため、
+シーケンス図では
+Service側の異常系分岐を省略する。
+end note
+
+@enduml

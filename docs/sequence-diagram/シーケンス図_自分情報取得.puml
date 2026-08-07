@@ -3,75 +3,143 @@ title ログインユーザー自身の情報取得シーケンス図
 
 actor 社員
 boundary React as Frontend
+control JwtFilter
 control EmployeeMeController
 control EmployeeService
-control JwtFilter
 entity EmployeeRepository
-database PostgreSQL
+
 
 社員 -> Frontend : マイページを開く
 
 note right of Frontend
-ログイン時に保存した
-JWTをAuthorizationヘッダーへ設定する。
+ログイン時に保存したJWTを
+Authorizationヘッダーへ設定する。
 end note
 
-Frontend -> EmployeeMeController : GET /api/employees/me
 
-EmployeeMeController -> JwtFilter : JWTを検証
+Frontend -> JwtFilter : GET /api/employees/me\nAuthorization: Bearer JWT
 
-JwtFilter -> JwtFilter : Users.idを取得
+JwtFilter -> JwtFilter : JWTを検証
+JwtFilter -> JwtFilter : SubjectからUsers.idを取得
 
 note right of JwtFilter
 JWTのSubjectには
-Users.idを保存している。
+Users.idを設定している。
 
-社員番号ではなく
+社員番号やEmployees.idではなく
 Users.idを利用する。
 end note
 
-JwtFilter --> EmployeeMeController : userId
 
-EmployeeMeController -> EmployeeService : getMe(userId)
+alt JWTが無効または期限切れ
 
-note right of EmployeeService
-Employees.user_idと
-Users.idを照合することで
+    JwtFilter --> Frontend : 401 Unauthorized
+    Frontend --> 社員 : 再ログインを促す
 
-ログインユーザー自身の
-社員情報のみ取得する。
+else JWTが有効
+
+    JwtFilter -> EmployeeMeController : 認証済みリクエスト\nuserIdを引き渡す
+
+    EmployeeMeController -> EmployeeService : getMe(userId)
+
+    note right of EmployeeService
+    JWTから取得したUsers.idを基に
+    Employees.user_idが一致する
+    Employeeを取得する。
+
+    これにより、
+    ログインユーザー自身の
+    社員情報のみ取得する。
+    end note
+
+
+    == 本人の社員情報取得 ==
+
+    EmployeeService -> EmployeeRepository : findByUserId(userId)
+    EmployeeRepository --> EmployeeService : Optional<Employee>
+
+
+    alt 社員情報が存在しない
+
+        EmployeeService -> EmployeeService : NotFoundExceptionをthrow
+
+        note right of EmployeeService
+        Users.idに紐づく
+        Employeeが存在しない場合は
+        NotFoundExceptionをthrowする。
+
+        RuntimeExceptionを継承した
+        Service側の業務例外として扱う。
+        end note
+
+
+    else 社員情報が存在する
+
+        == レスポンス生成 ==
+
+        EmployeeService -> EmployeeService : EmployeeMeResponseDtoへ変換
+
+        note right of EmployeeService
+        Employeeから
+        EmployeeMeResponseDtoを生成する。
+
+        レスポンスには
+        ログインユーザー本人の
+        社員情報を設定する。
+
+        必要に応じて、
+        Employeeに関連付けられた
+        Department・Positionから
+        部署名・役職名を取得する。
+
+        パスワードなどの
+        認証情報は含めない。
+        end note
+
+        EmployeeService --> EmployeeMeController : EmployeeMeResponseDto
+
+        EmployeeMeController --> Frontend : 取得成功\nEmployeeMeResponseDto
+
+        Frontend --> 社員 : 自分の社員情報を表示
+
+    end
+end
+
+
+note over EmployeeRepository
+EmployeeRepositoryでは
+Spring Data JPAを使用する。
+
+findByUserId()などの
+Repositoryメソッドを利用し、
+SQLは直接記述しない。
+
+EmployeeとDepartment、
+Positionの関連は
+Entityの関連付けを利用する。
 end note
 
-EmployeeService -> EmployeeRepository : findByUserId(userId)
 
-EmployeeRepository -> PostgreSQL
-: SELECT
-employees
-JOIN departments
-JOIN positions
-WHERE user_id = ?
+note over JwtFilter, EmployeeService
+この処理では
+リクエストボディを使用しないため、
+DTOのBean Validationによる
+入力チェックは行わない。
 
-PostgreSQL --> EmployeeRepository
-: Employee
+【認証エラー】
 
-EmployeeRepository --> EmployeeService
-: Employee
+JWT無効・期限切れ
+   |
+   v
+401 Unauthorized
 
-note right of EmployeeService
-Employeeを
-EmployeeMeResponseDtoへ変換する。
 
-部署名・役職名も
-レスポンスへ設定する。
+【Service業務エラー】
+
+社員情報が存在しない
+   |
+   v
+NotFoundException
 end note
-
-EmployeeService --> EmployeeMeController
-: EmployeeMeResponseDto
-
-EmployeeMeController --> Frontend
-: 200 OK
-
-Frontend --> 社員
-: 自分の社員情報を表示
 
 @enduml

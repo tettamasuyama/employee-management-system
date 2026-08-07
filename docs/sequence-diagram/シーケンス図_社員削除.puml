@@ -6,8 +6,7 @@ boundary React as Frontend
 control EmployeeController
 control EmployeeService
 entity EmployeeRepository
-entity UserRepository
-database PostgreSQL
+
 
 管理者 -> Frontend : 削除ボタンを押下
 
@@ -16,81 +15,127 @@ note right of Frontend
 Employees.idを送信する。
 end note
 
+
 Frontend -> EmployeeController : DELETE /api/employees/{id}
 
 EmployeeController -> EmployeeService : deleteEmployee(id)
 
 note right of EmployeeService
-社員削除ではEmployees.idを使用する。
+社員削除では
+Employees.idを使用する。
 
 Users.idではなく、
 Employees.idをキーとして
 削除対象を特定する。
 end note
 
+
+== 削除対象社員取得 ==
+
 EmployeeService -> EmployeeRepository : findById(id)
+EmployeeRepository --> EmployeeService : Optional<Employee>
 
-EmployeeRepository -> PostgreSQL
-: SELECT * FROM employees
-WHERE id = ?
 
-PostgreSQL --> EmployeeRepository
-: Employee
+alt 削除対象の社員が存在しない
 
-EmployeeRepository --> EmployeeService
-: Employee
+    EmployeeService -> EmployeeService : NotFoundExceptionをthrow
 
-note right of EmployeeService
-Employeeには
-関連するUserが保持されている。
+    note right of EmployeeService
+    指定されたEmployees.idに
+    該当する社員が存在しない場合は
+    NotFoundExceptionをthrowする。
 
-Employee.userから
-Users.idを取得できる。
+    RuntimeExceptionを継承した
+    Service側の業務例外として扱う。
+    end note
+
+
+else 削除対象の社員が存在する
+
+
+    == Employee削除 ==
+
+    EmployeeService -> EmployeeRepository : delete(employee)
+
+    note right of EmployeeRepository
+    Spring Data JPAの
+    delete()を利用して
+    Employeeエンティティを削除する。
+
+    SQLは直接記述しない。
+    end note
+
+    EmployeeRepository --> EmployeeService : 削除完了
+
+
+    note right of EmployeeService
+    削除対象は
+    Employeeのみとする。
+
+    Employeeに紐づくUserは
+    この処理では削除しない。
+
+    Usersテーブルのレコードは
+    そのまま保持する。
+    end note
+
+
+    == レスポンス ==
+
+    EmployeeService --> EmployeeController : 削除完了
+
+    EmployeeController --> Frontend : 204 No Content
+
+    Frontend -> Frontend : 社員一覧を再取得
+
+    Frontend --> 管理者 : 更新後の社員一覧を表示
+
+end
+
+
+note over EmployeeRepository
+EmployeeRepositoryでは
+Spring Data JPAを使用する。
+
+findById()
+delete()
+
+などのRepositoryメソッドを利用し、
+SQLは直接記述しない。
 end note
 
-== Employee削除 ==
 
-EmployeeService -> EmployeeRepository
-: delete(employee)
+note over EmployeeController, EmployeeService
+この処理では
+Request DTOを使用しないため、
 
-EmployeeRepository -> PostgreSQL
-: DELETE FROM employees
+@NotBlank
+@Email
+@Size
 
-PostgreSQL --> EmployeeRepository
-: OK
+などのBean Validationによる
+入力値チェックは行わない。
 
-EmployeeRepository --> EmployeeService
-: 完了
 
-== User削除 ==
+【Service業務エラー】
 
-EmployeeService -> UserRepository
-: delete(employee.user)
+削除対象社員が存在しない
+   |
+   v
+NotFoundException
 
-UserRepository -> PostgreSQL
-: DELETE FROM users
 
-PostgreSQL --> UserRepository
-: OK
+【削除対象】
 
-UserRepository --> EmployeeService
-: 完了
+Employees
+   |
+   v
+削除する
 
-note right of EmployeeService
-UserとEmployeeは
-同一トランザクションで削除する。
-
-どちらか一方だけ削除されることを
-防止する。
+Users
+   |
+   v
+削除しない
 end note
-
-EmployeeService --> EmployeeController
-: 削除成功
-
-EmployeeController --> Frontend
-: 204 No Content
-
-Frontend --> 管理者
-: 一覧を再取得して画面更新
 
 @enduml

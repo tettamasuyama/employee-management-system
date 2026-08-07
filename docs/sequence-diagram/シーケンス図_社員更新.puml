@@ -4,86 +4,287 @@ title 社員更新シーケンス図
 actor 管理者
 boundary React as Frontend
 control EmployeeController
+entity EmployeeUpdateRequestDto
+control GlobalExceptionHandler
 control EmployeeService
 entity EmployeeRepository
 entity DepartmentRepository
 entity PositionRepository
-database PostgreSQL
+
 
 管理者 -> Frontend : 更新内容を入力
 
-Frontend -> EmployeeController : PUT /api/employees/{id}
+Frontend -> EmployeeController : PUT /api/employees/{id}\nEmployeeUpdateRequestDto
 
-EmployeeController -> EmployeeService : updateEmployee(id, request)
 
-EmployeeService -> EmployeeRepository : findById(id)
+== DTO入力値確認 ==
 
-EmployeeRepository -> PostgreSQL : Employees取得
+note over EmployeeController, EmployeeUpdateRequestDto
+Spring MVCによりJSONを
+EmployeeUpdateRequestDtoへ変換する。
 
-PostgreSQL --> EmployeeRepository : Employee
+@ValidとBean Validationを利用して
+入力値をチェックする。
 
-EmployeeRepository --> EmployeeService : Employee
+例：
 
-== 社員番号重複確認 ==
+@NotBlank
+必須入力チェック
 
-EmployeeService -> EmployeeRepository : existsByEmployeeNumber(employeeNumber)
+@Email
+メール形式チェック
 
-EmployeeRepository -> PostgreSQL
+@Size
+氏名・社員メールアドレスなどの
+文字数チェック
 
-PostgreSQL --> EmployeeRepository : true / false
+入力条件に違反した場合は
+MethodArgumentNotValidExceptionが
+発生する。
+end note
 
-EmployeeRepository --> EmployeeService : true / false
 
-== 社員メール重複確認 ==
+alt DTOの入力値が不正
 
-EmployeeService -> EmployeeRepository : existsByEmail(employeeEmail)
+    EmployeeUpdateRequestDto --> GlobalExceptionHandler : MethodArgumentNotValidException
 
-EmployeeRepository -> PostgreSQL
+    note right of GlobalExceptionHandler
+    DTOの入力エラーを
+    共通処理する。
 
-PostgreSQL --> EmployeeRepository : true / false
+    例：
 
-EmployeeRepository --> EmployeeService : true / false
+    ・氏名未入力
+    ・氏名文字数超過
+    ・社員メールアドレス未入力
+    ・メール形式不正
+    ・メールアドレス文字数超過
 
-== 部署取得 ==
+    HTTPステータスとして
+    400 Bad Requestを返却する。
+    end note
 
-EmployeeService -> DepartmentRepository : findById(departmentId)
+    GlobalExceptionHandler --> Frontend : 400 Bad Request\n入力エラーメッセージ
+    Frontend --> 管理者 : 入力エラーを表示
 
-DepartmentRepository -> PostgreSQL
 
-PostgreSQL --> DepartmentRepository : Department
+else DTOの入力値が正常
 
-DepartmentRepository --> EmployeeService : Department
+    EmployeeController -> EmployeeService : updateEmployee(id, request)
 
-== 役職取得 ==
 
-EmployeeService -> PositionRepository : findById(positionId)
+    == 更新対象社員取得 ==
 
-PositionRepository -> PostgreSQL
+    EmployeeService -> EmployeeRepository : findById(id)
+    EmployeeRepository --> EmployeeService : Optional<Employee>
 
-PostgreSQL --> PositionRepository : Position
 
-PositionRepository --> EmployeeService : Position
+    alt Employeeが存在しない
 
-== 更新 ==
+        EmployeeService -> EmployeeService : NotFoundExceptionをthrow
 
-EmployeeService -> EmployeeRepository : save(employee)
+        note right of EmployeeService
+        指定されたEmployees.idに
+        該当する社員が存在しない場合は
+        NotFoundExceptionをthrowする。
 
-EmployeeRepository -> PostgreSQL : UPDATE employees
+        Service側の
+        ビジネスルールエラーとして扱う。
+        end note
 
-PostgreSQL --> EmployeeRepository : 更新済Employee
 
-EmployeeRepository --> EmployeeService : Employee
+    else Employeeが存在する
 
-EmployeeService --> EmployeeController : EmployeeResponseDto
 
-EmployeeController --> Frontend : 200 OK
+        == 社員メールアドレス重複確認 ==
 
-Frontend --> 管理者 : 更新完了画面
+        EmployeeService -> EmployeeRepository : existsByEmailAndIdNot(\nemployeeEmail, id)
+        EmployeeRepository --> EmployeeService : true / false
 
-note right of EmployeeService
-User.emailは更新しない。
+        note right of EmployeeService
+        Employees.emailの
+        重複を確認する。
 
-Employee.emailのみ更新する。
+        更新対象のEmployee自身は
+        重複チェックから除外する。
+
+        Users.emailは
+        ログイン用メールアドレスなので
+        この処理では更新しない。
+        end note
+
+
+        alt 他の社員が同じメールアドレスを使用している
+
+            EmployeeService -> EmployeeService : ConflictExceptionをthrow
+
+            note right of EmployeeService
+            他の社員が同じ
+            メールアドレスを使用している場合は
+            ConflictExceptionをthrowする。
+
+            RuntimeExceptionを継承した
+            独自Exceptionを使用する。
+            end note
+
+
+        else 社員メールアドレスが使用可能
+
+
+            == 部署取得 ==
+
+            EmployeeService -> DepartmentRepository : findById(departmentId)
+            DepartmentRepository --> EmployeeService : Department
+
+
+            == 役職取得 ==
+
+            EmployeeService -> PositionRepository : findById(positionId)
+            PositionRepository --> EmployeeService : Position
+
+
+            note right of EmployeeService
+            部署・役職・在籍状態は
+            フロントエンドで
+            選択形式とする。
+
+            部署
+            → 登録済みDepartmentから選択
+
+            役職
+            → 登録済みPositionから選択
+
+            在籍状態
+            → ACTIVE（在籍）
+            → RETIRED（退職）
+
+            通常操作では
+            選択肢以外の値は
+            送信されない想定とする。
+
+            そのためシーケンス図では
+            部署・役職・在籍状態に対する
+            Service側のエラー分岐は省略する。
+            end note
+
+
+            == Employee更新 ==
+
+            EmployeeService -> EmployeeService : employee.setName(request.name)
+            EmployeeService -> EmployeeService : employee.setEmail(request.employeeEmail)
+            EmployeeService -> EmployeeService : employee.setDepartment(department)
+            EmployeeService -> EmployeeService : employee.setPosition(position)
+            EmployeeService -> EmployeeService : employee.setHireDate(request.hireDate)
+            EmployeeService -> EmployeeService : employee.setStatus(request.status)
+
+            note right of EmployeeService
+            更新対象はEmployee情報のみ。
+
+            ・name
+            ・email
+            ・department
+            ・position
+            ・hireDate
+            ・status
+
+            employeeNumberは
+            自動生成した社員識別子のため
+            更新しない。
+
+            Users.email
+            Users.password
+            Users.role
+
+            も更新しない。
+            end note
+
+
+            EmployeeService -> EmployeeRepository : save(employee)
+            EmployeeRepository --> EmployeeService : Employee
+
+            note right of EmployeeRepository
+            Spring Data JPAの
+            save()を利用して
+            Employeeエンティティを更新する。
+
+            SQLは直接記述しない。
+            end note
+
+
+            == レスポンス生成 ==
+
+            EmployeeService -> EmployeeService : EmployeeResponseDtoへ変換
+            EmployeeService --> EmployeeController : EmployeeResponseDto
+
+            EmployeeController --> Frontend : 更新成功\nEmployeeResponseDto
+            Frontend --> 管理者 : 更新後の社員情報を表示
+
+        end
+    end
+end
+
+
+note over EmployeeRepository, PositionRepository
+Repository層では
+Spring Data JPAを使用する。
+
+findById()
+existsByEmailAndIdNot()
+save()
+
+などのRepositoryメソッドを利用し、
+SQLは直接記述しない。
+
+Department・Positionは
+フロントエンドで選択された
+IDを基に取得する。
+end note
+
+
+note over EmployeeUpdateRequestDto, GlobalExceptionHandler
+DTO入力エラーと
+Serviceのビジネスルールエラーは
+役割を分ける。
+
+【DTO入力エラー】
+
+@NotBlank
+@Email
+@Size
+   |
+   v
+MethodArgumentNotValidException
+   |
+   v
+GlobalExceptionHandler
+   |
+   v
+400 Bad Request
+
+
+【Service業務エラー】
+
+社員が存在しない
+   |
+   v
+NotFoundException
+
+社員メールアドレス重複
+   |
+   v
+ConflictException
+
+
+【選択形式】
+
+部署
+役職
+在籍状態
+
+はフロントエンドで
+選択肢を制限するため、
+シーケンス図では
+異常系の分岐を省略する。
 end note
 
 @enduml
