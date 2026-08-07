@@ -1,0 +1,135 @@
+@startuml
+title DTO入力エラー・HTTPステータス返却クラス図
+
+skinparam classAttributeIconSize 0
+
+
+class RequestDto {
+    <<DTO>>
+}
+
+class MethodArgumentNotValidException
+
+class GlobalExceptionHandler {
+    + handleValidation(ex : MethodArgumentNotValidException)
+}
+
+class ResponseEntity
+
+enum HttpStatus {
+    BAD_REQUEST
+}
+
+class ApiResponseDto {
+    - status : String
+    - data : Object
+    - errors : List
+}
+
+
+RequestDto ..> MethodArgumentNotValidException : バリデーションエラー
+
+GlobalExceptionHandler ..> MethodArgumentNotValidException : @ExceptionHandler
+
+GlobalExceptionHandler ..> HttpStatus : ステータス設定
+
+GlobalExceptionHandler --> ApiResponseDto : エラー内容を設定
+
+GlobalExceptionHandler --> ResponseEntity : HTTPレスポンス生成
+
+ResponseEntity --> ApiResponseDto : body
+
+
+note right of RequestDto
+ログイン、新規登録、社員更新などで
+使用するRequest DTOを表す。
+
+@NotBlank
+@Email
+@Size
+などのBean Validationを定義する。
+
+入力値が条件に違反した場合、
+Springによって
+MethodArgumentNotValidExceptionが
+発生する。
+end note
+
+
+note right of MethodArgumentNotValidException
+DTOのBean Validationに
+失敗した場合に発生する
+Spring標準の例外。
+
+独自Exceptionクラスは
+使用しない。
+end note
+
+
+note right of GlobalExceptionHandler
+@RestControllerAdviceを使用する。
+
+MethodArgumentNotValidExceptionが
+発生した場合、
+@ExceptionHandlerによって
+このクラスの対応メソッドが
+自動的に実行される。
+
+DTOごとに直接呼び出す
+必要はない。
+end note
+
+
+note right of HttpStatus
+DTOの入力内容が不正な場合は
+
+400 BAD_REQUEST
+
+をHTTPステータスコードとして
+設定する。
+end note
+
+
+note bottom of ApiResponseDto
+バリデーションエラーの
+メッセージを格納する。
+
+例
+
+status : ERROR
+
+data : null
+
+errors :
+・メールアドレス必須
+・メール形式が不正
+end note
+
+
+note as N1
+処理の流れ
+
+各Request DTO
+   |
+   v
+Bean Validation
+   |
+   v
+入力値エラー
+   |
+   v
+MethodArgumentNotValidException
+   |
+   v
+GlobalExceptionHandler
+   |
+   v
+400 BAD_REQUEST
+   |
+   v
+ResponseEntityとして返却
+end note
+
+N1 .. GlobalExceptionHandler
+
+@enduml

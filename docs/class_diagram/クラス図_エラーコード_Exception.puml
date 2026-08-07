@@ -1,0 +1,92 @@
+@startuml
+title Exceptionクラス図
+
+skinparam classAttributeIconSize 0
+
+class RuntimeException {
+    - message : String
+}
+
+class AuthException {
+    + AuthException(message : String)
+}
+
+class ConflictException {
+    + ConflictException(message : String)
+}
+
+class ValidationException {
+    + ValidationException(message : String)
+}
+
+class NotFoundException {
+    + NotFoundException(message : String)
+}
+
+class FileException {
+    + FileException(message : String)
+}
+
+' =========================
+' 継承関係
+' =========================
+RuntimeException <|-- AuthException
+RuntimeException <|-- ConflictException
+RuntimeException <|-- ValidationException
+RuntimeException <|-- NotFoundException
+RuntimeException <|-- FileException
+
+
+' =========================
+' Note
+' =========================
+
+note right of RuntimeException
+Exceptionクラスの親クラス。
+
+各Exceptionから
+super(message)を呼び出し、
+エラーメッセージを保持する。
+end note
+
+note right of AuthException
+認証処理で使用する例外。
+
+例：
+・アカウントが存在しない
+・パスワードが一致しない
+
+AuthServiceからthrowされる。
+end note
+
+note right of ConflictException
+データの重複時に使用する例外。
+
+例：
+・メールアドレスが
+  既に登録されている
+
+Serviceクラスで
+ビジネスルールを判定して
+throwする。
+end note
+
+note bottom of ValidationException
+Service内で独自の
+入力値チェックに
+違反した場合に使用する。
+end note
+
+note bottom of NotFoundException
+社員情報など、
+対象データが
+存在しない場合に使用する。
+end note
+
+note bottom of FileException
+CSVファイルの読み込みや
+ファイル処理で
+問題が発生した場合に使用する。
+end note
+
+@enduml
