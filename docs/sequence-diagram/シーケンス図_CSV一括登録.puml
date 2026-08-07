@@ -10,8 +10,7 @@ entity UserRepository
 entity EmployeeRepository
 entity DepartmentRepository
 entity PositionRepository
-control PasswordEncoder
-database PostgreSQL
+
 
 管理者 -> Frontend : CSVファイルを選択
 
@@ -22,204 +21,272 @@ CSVファイルのみ
 拡張子チェックを行う。
 end note
 
-Frontend -> EmployeeImportController
-: POST /api/employees/import
 
-EmployeeImportController
--> EmployeeImportService
-: importCsv(file)
+Frontend -> EmployeeImportController : POST /api/employees/import\nCSVファイル
 
-EmployeeImportService
--> CsvEmployeeMapper
-: parse(file)
+EmployeeImportController -> EmployeeImportService : importCsv(file)
 
-CsvEmployeeMapper --> EmployeeImportService
-: List<CsvEmployeeRowDto>
+
+== CSV読み込み ==
+
+EmployeeImportService -> CsvEmployeeMapper : parse(file)
+CsvEmployeeMapper --> EmployeeImportService : List<CsvEmployeeRowDto>
+
+note right of CsvEmployeeMapper
+CSVファイルを読み込み、
+1行ごとのデータを
+CsvEmployeeRowDtoへ変換する。
+end note
+
 
 note right of EmployeeImportService
-
-CSVは
-1行ずつ順番に処理する。
+CSVは1行ずつ順番に処理する。
 
 1件失敗しても
-残りのデータは継続して登録する。
+残りの行は処理を継続する。
 
-最後に成功件数・失敗件数を
-集計する。
-
-end note
-
-loop CSVの全行
-
-== ログインメール重複確認 ==
-
-EmployeeImportService
--> UserRepository
-: existsByEmail(loginEmail)
-
-UserRepository
--> PostgreSQL
-
-PostgreSQL --> UserRepository
-
-UserRepository --> EmployeeImportService
-
-alt 重複
-
-note right
-
-この行は登録しない。
-
-エラー件数を加算する。
-
-end note
-
-else 登録可能
-
-== 社員番号確認 ==
-
-EmployeeImportService
--> EmployeeRepository
-: existsByEmployeeNumber(employeeNumber)
-
-EmployeeRepository
--> PostgreSQL
-
-PostgreSQL --> EmployeeRepository
-
-EmployeeRepository --> EmployeeImportService
-
-== 社員メール確認 ==
-
-EmployeeImportService
--> EmployeeRepository
-: existsByEmail(employeeEmail)
-
-EmployeeRepository
--> PostgreSQL
-
-PostgreSQL --> EmployeeRepository
-
-EmployeeRepository --> EmployeeImportService
-
-== 部署取得 ==
-
-EmployeeImportService
--> DepartmentRepository
-: findByName(departmentName)
-
-DepartmentRepository
--> PostgreSQL
-
-PostgreSQL --> DepartmentRepository
-
-DepartmentRepository --> EmployeeImportService
-
-== 役職取得 ==
-
-EmployeeImportService
--> PositionRepository
-: findByName(positionName)
-
-PositionRepository
--> PostgreSQL
-
-PostgreSQL --> PositionRepository
-
-PositionRepository --> EmployeeImportService
-
-note right of EmployeeImportService
-
-CSVでは部署名・役職名から
-
-Department.id
-
-Position.id
-
-へ変換する。
-
-Employeeには
-外部キーとして設定する。
-
-end note
-
-== パスワード暗号化 ==
-
-EmployeeImportService
--> PasswordEncoder
-: encode(password)
-
-PasswordEncoder --> EmployeeImportService
-: hashedPassword
-
-== User登録 ==
-
-EmployeeImportService
--> UserRepository
-: save(User)
-
-UserRepository
--> PostgreSQL
-
-PostgreSQL --> UserRepository
-: User(id)
-
-UserRepository --> EmployeeImportService
-: User
-
-note right of EmployeeImportService
-
-Userを先に登録する。
-
-取得したUser.idを
-Employee.userへ設定する。
-
-end note
-
-== Employee登録 ==
-
-EmployeeImportService
--> EmployeeRepository
-: save(Employee)
-
-EmployeeRepository
--> PostgreSQL
-
-PostgreSQL --> EmployeeRepository
-: Employee
-
-EmployeeRepository --> EmployeeImportService
-
-end
-
-end
-
-note right of EmployeeImportService
-
-CSV登録結果
+最後に
 
 ・総件数
-
 ・成功件数
-
 ・失敗件数
-
 ・エラー内容
 
 を集計する。
-
 end note
 
-EmployeeImportService
---> EmployeeImportController
-: CsvImportResponseDto
 
-EmployeeImportController
---> Frontend
-: 200 OK
+loop CSVの全行
 
-Frontend
---> 管理者
-: 登録結果を表示
+
+    == 行データ確認 ==
+
+    EmployeeImportService -> EmployeeImportService : CSV1行の入力値を確認
+
+    alt 必須項目・形式・文字数などが不正
+
+        EmployeeImportService -> EmployeeImportService : エラー内容を記録\n失敗件数 + 1
+
+        note right of EmployeeImportService
+        CSV1行の入力内容に
+        問題がある場合は
+        この行を登録しない。
+
+        例：
+
+        ・必須項目なし
+        ・メール形式不正
+        ・文字数超過
+        ・roleの値が不正
+        ・日付形式不正
+
+        残りの行は継続して処理する。
+        end note
+
+
+    else 行データが正常
+
+
+        == ログインメール重複確認 ==
+
+        EmployeeImportService -> UserRepository : existsByEmail(loginEmail)
+        UserRepository --> EmployeeImportService : true / false
+
+
+        alt ログインメールが重複
+
+            EmployeeImportService -> EmployeeImportService : ConflictException相当の\nエラー内容を記録\n失敗件数 + 1
+
+            note right of EmployeeImportService
+            ログインメールアドレスが
+            既に存在する場合、
+            この行は登録しない。
+
+            CSV一括登録では
+            例外によって全処理を停止せず、
+            行単位のエラーとして記録する。
+            end note
+
+
+        else ログインメールが未登録
+
+
+            == 社員メール重複確認 ==
+
+            EmployeeImportService -> EmployeeRepository : existsByEmail(employeeEmail)
+            EmployeeRepository --> EmployeeImportService : true / false
+
+
+            alt 社員メールが重複
+
+                EmployeeImportService -> EmployeeImportService : ConflictException相当の\nエラー内容を記録\n失敗件数 + 1
+
+
+            else 社員メールが未登録
+
+
+                == 部署取得 ==
+
+                EmployeeImportService -> DepartmentRepository : findByName(departmentName)
+                DepartmentRepository --> EmployeeImportService : Optional<Department>
+
+
+                alt 部署が存在しない
+
+                    EmployeeImportService -> EmployeeImportService : NotFoundException相当の\nエラー内容を記録\n失敗件数 + 1
+
+                    note right of EmployeeImportService
+                    CSVに指定された部署名が
+                    存在しない場合、
+                    この行は登録しない。
+                    end note
+
+
+                else 部署が存在する
+
+
+                    == 役職取得 ==
+
+                    EmployeeImportService -> PositionRepository : findByName(positionName)
+                    PositionRepository --> EmployeeImportService : Optional<Position>
+
+
+                    alt 役職が存在しない
+
+                        EmployeeImportService -> EmployeeImportService : NotFoundException相当の\nエラー内容を記録\n失敗件数 + 1
+
+
+                    else 役職が存在する
+
+                        note right of EmployeeImportService
+                        CSVでは部署名・役職名から
+                        DepartmentとPositionを取得する。
+
+                        取得したEntityを
+                        Employeeへ関連付ける。
+
+                        SQLや外部キーIDを
+                        直接操作しない。
+                        end note
+
+
+                        == 社員番号自動生成 ==
+
+                        EmployeeImportService -> EmployeeRepository : findTopByOrderByEmployeeNumberDesc()
+                        EmployeeRepository --> EmployeeImportService : Employee / null
+
+                        EmployeeImportService -> EmployeeImportService : generateEmployeeNumber()
+
+                        note right of EmployeeImportService
+                        社員番号はCSVに
+                        入力させない。
+
+                        最後に登録された社員番号を基に
+                        次の社員番号を自動生成する。
+                        end note
+
+
+                        == User生成・登録 ==
+
+                        EmployeeImportService -> EmployeeImportService : Userを生成\nloginEmail / role
+
+                        EmployeeImportService -> UserRepository : save(user)
+                        UserRepository --> EmployeeImportService : User
+
+                        note right of UserRepository
+                        Spring Data JPAの
+                        save()を利用して
+                        Userを保存する。
+
+                        管理者によるCSV登録では
+                        パスワードは登録しない。
+                        end note
+
+
+                        == Employee生成・登録 ==
+
+                        EmployeeImportService -> EmployeeImportService : Employeeを生成
+
+                        note right of EmployeeImportService
+                        Employeeへ設定する情報
+
+                        ・User
+                        ・employeeNumber
+                        ・name
+                        ・employeeEmail
+                        ・Department
+                        ・Position
+                        ・hireDate
+                        ・status
+                        end note
+
+                        EmployeeImportService -> EmployeeRepository : save(employee)
+                        EmployeeRepository --> EmployeeImportService : Employee
+
+                        EmployeeImportService -> EmployeeImportService : 成功件数 + 1
+
+                    end
+                end
+            end
+        end
+    end
+
+end
+
+
+== 登録結果集計 ==
+
+EmployeeImportService -> EmployeeImportService : CsvImportResponseDtoを生成
+
+note right of EmployeeImportService
+CSV登録結果
+
+・総件数
+・成功件数
+・失敗件数
+・エラー内容
+
+をCsvImportResponseDtoへ設定する。
+end note
+
+EmployeeImportService --> EmployeeImportController : CsvImportResponseDto
+
+EmployeeImportController --> Frontend : CsvImportResponseDto
+
+Frontend --> 管理者 : 登録結果を表示
+
+
+note over UserRepository, PositionRepository
+Repository層では
+Spring Data JPAを使用する。
+
+existsByEmail()
+findByName()
+findTopByOrderByEmployeeNumberDesc()
+save()
+
+などのRepositoryメソッドを利用し、
+SQLは直接記述しない。
+end note
+
+
+note over CsvEmployeeMapper, EmployeeImportService
+CSV一括登録では
+1行のエラーで
+全処理を停止しない。
+
+各行ごとに
+
+正常
+→ User / Employeeを保存
+→ 成功件数を加算
+
+異常
+→ エラー内容を記録
+→ 失敗件数を加算
+
+として処理し、
+次の行へ進む。
+end note
 
 @enduml
