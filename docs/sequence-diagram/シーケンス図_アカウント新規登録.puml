@@ -11,9 +11,10 @@ entity UserRepository
 entity EmployeeRepository
 entity DepartmentRepository
 entity PositionRepository
+database "Departmentテーブル" as DepartmentTable
+database "Positionテーブル" as PositionTable
 control PasswordEncoder
 control JwtProvider
-
 
 利用者 -> Frontend : 新規登録画面を開く
 Frontend --> 利用者 : アカウント登録フォームを表示
@@ -28,11 +29,8 @@ note right of Frontend
 ・パスワード
 ・role
 ・氏名
-・社員メールアドレス
 ・部署
 ・役職
-・入社日
-・在籍状態
 
 社員番号は入力しない。
 
@@ -40,7 +38,7 @@ role
 0：EMPLOYEE
 1：ADMIN
 
-部署・役職・在籍状態・roleは
+部署・役職・roleは
 フロントエンドで
 選択形式とする。
 end note
@@ -126,184 +124,162 @@ else DTOの入力値が正常
     else ログインメールアドレスが未登録
 
 
-        == 社員メールアドレス重複確認 ==
+        == 部署取得 ==
 
-        AuthService -> EmployeeRepository : existsByEmail(employeeEmail)
-        EmployeeRepository --> AuthService : true / false
+        AuthService -> DepartmentRepository : findById(departmentId)
+        DepartmentRepository -> DepartmentTable : 主キーでDepartmentを検索
+        DepartmentTable --> DepartmentRepository : Department
+        DepartmentRepository --> AuthService : Department
 
 
-        alt 社員メールアドレスが重複
+        == 役職取得 ==
 
-            AuthService -> AuthService : ConflictExceptionをthrow
+        AuthService -> PositionRepository : findById(positionId)
+        PositionRepository -> PositionTable : 主キーでPositionを検索
+        PositionTable --> PositionRepository : Position
+        PositionRepository --> AuthService : Position
 
-            note right of AuthService
-            社員メールアドレスの重複も
-            Service側の
-            ビジネスルールとして判定する。
-            end note
 
+        note right of AuthService
+        role・部署・役職は
+        フロントエンドで
+        選択形式とする。
 
-        else 社員メールアドレスが未登録
+        role
+        → EMPLOYEE / ADMIN
 
+        部署
+        → 登録済みDepartmentから選択
 
-            == 部署取得 ==
+        役職
+        → 登録済みPositionから選択
 
-            AuthService -> DepartmentRepository : findById(departmentId)
-            DepartmentRepository --> AuthService : Department
+        通常操作では
+        選択肢以外の値は
+        送信されない想定とする。
 
+        そのためシーケンス図では
+        これらのService側の
+        異常系分岐は省略する。
+        end note
 
-            == 役職取得 ==
 
-            AuthService -> PositionRepository : findById(positionId)
-            PositionRepository --> AuthService : Position
+        == 社員番号自動生成 ==
 
+        AuthService -> EmployeeRepository : findTopByOrderByEmployeeNumberDesc()
+        EmployeeRepository --> AuthService : Employee / null
 
-            note right of AuthService
-            role・部署・役職・在籍状態は
-            フロントエンドで
-            選択形式とする。
+        AuthService -> AuthService : generateEmployeeNumber()
 
-            role
-            → EMPLOYEE / ADMIN
+        note right of AuthService
+        社員番号は利用者に
+        入力させない。
 
-            部署
-            → 登録済みDepartmentから選択
+        最後に登録された社員番号を基に
+        次の社員番号を自動生成する。
 
-            役職
-            → 登録済みPositionから選択
+        登録データが存在しない場合
+        00001
 
-            在籍状態
-            → ACTIVE（在籍）
-            → RETIRED（退職）
+        存在する場合
+        最大社員番号 + 1
+        end note
 
-            通常操作では
-            選択肢以外の値は
-            送信されない想定とする。
 
-            そのためシーケンス図では
-            これらのService側の
-            異常系分岐は省略する。
-            end note
+        == パスワードハッシュ化 ==
 
+        AuthService -> PasswordEncoder : encode(password)
+        PasswordEncoder --> AuthService : hashedPassword
 
-            == 社員番号自動生成 ==
+        note right of PasswordEncoder
+        平文パスワードは保存しない。
 
-            AuthService -> EmployeeRepository : findTopByOrderByEmployeeNumberDesc()
-            EmployeeRepository --> AuthService : Employee / null
+        ハッシュ化した値を
+        User.passwordへ設定する。
+        end note
 
-            AuthService -> AuthService : generateEmployeeNumber()
 
-            note right of AuthService
-            社員番号は利用者に
-            入力させない。
+        == User生成・登録 ==
 
-            最後に登録された社員番号を基に
-            次の社員番号を自動生成する。
+        AuthService -> AuthService : Userを生成\nloginEmail / hashedPassword / role
 
-            登録データが存在しない場合
-            00001
+        AuthService -> UserRepository : save(user)
+        UserRepository --> AuthService : User
 
-            存在する場合
-            最大社員番号 + 1
-            end note
+        note right of UserRepository
+        Spring Data JPAの
+        save()を利用して
+        Userエンティティを保存する。
 
+        SQLは直接記述しない。
+        end note
 
-            == パスワードハッシュ化 ==
 
-            AuthService -> PasswordEncoder : encode(password)
-            PasswordEncoder --> AuthService : hashedPassword
+        == Employee生成・登録 ==
 
-            note right of PasswordEncoder
-            平文パスワードは保存しない。
+        AuthService -> AuthService : Employeeを生成
 
-            ハッシュ化した値を
-            User.passwordへ設定する。
-            end note
+        note right of AuthService
+        Employeeへ設定する情報
 
+        ・User
+        ・employeeNumber
+        ・name
+        ・Department
+        ・Position
+        end note
 
-            == User生成・登録 ==
+        AuthService -> EmployeeRepository : save(employee)
+        EmployeeRepository --> AuthService : Employee
 
-            AuthService -> AuthService : Userを生成\nloginEmail / hashedPassword / role
+        note right of EmployeeRepository
+        Spring Data JPAの
+        save()を利用して
+        Employeeエンティティを保存する。
 
-            AuthService -> UserRepository : save(user)
-            UserRepository --> AuthService : User
+        保存したUserを
+        Employeeへ関連付ける。
 
-            note right of UserRepository
-            Spring Data JPAの
-            save()を利用して
-            Userエンティティを保存する。
+        また、Departmentテーブルと
+        Positionテーブルから取得した
+        各エンティティをEmployeeへ
+        関連付けて保存する。
+        end note
 
-            SQLは直接記述しない。
-            end note
 
+        == JWT生成 ==
 
-            == Employee生成・登録 ==
+        AuthService -> JwtProvider : generateToken(user.id)
+        JwtProvider --> AuthService : JWT
 
-            AuthService -> AuthService : Employeeを生成
+        note right of JwtProvider
+        JWTのSubjectには
+        Users.idを設定する。
+        end note
 
-            note right of AuthService
-            Employeeへ設定する情報
 
-            ・User
-            ・employeeNumber
-            ・name
-            ・employeeEmail
-            ・Department
-            ・Position
-            ・hireDate
-            ・status
+        == レスポンス生成 ==
 
-            statusには
-            ACTIVEまたはRETIREDを設定する。
-            end note
+        AuthService -> AuthService : AuthResponseDto生成\n(token, role)
+        AuthService --> AuthController : AuthResponseDto
 
-            AuthService -> EmployeeRepository : save(employee)
-            EmployeeRepository --> AuthService : Employee
+        AuthController --> Frontend : 登録成功\nAuthResponseDto
 
-            note right of EmployeeRepository
-            Spring Data JPAの
-            save()を利用して
-            Employeeエンティティを保存する。
+        Frontend -> Frontend : tokenとroleを保存
 
-            保存したUserを
-            Employeeへ関連付ける。
-            end note
 
+        alt role = ADMIN
 
-            == JWT生成 ==
+            Frontend -> Frontend : 管理者ページへ遷移
+            Frontend --> 利用者 : 管理者画面を表示
 
-            AuthService -> JwtProvider : generateToken(user.id)
-            JwtProvider --> AuthService : JWT
+        else role = EMPLOYEE
 
-            note right of JwtProvider
-            JWTのSubjectには
-            Users.idを設定する。
-            end note
-
-
-            == レスポンス生成 ==
-
-            AuthService -> AuthService : AuthResponseDto生成\n(token, role)
-            AuthService --> AuthController : AuthResponseDto
-
-            AuthController --> Frontend : 登録成功\nAuthResponseDto
-
-            Frontend -> Frontend : tokenとroleを保存
-
-
-            alt role = ADMIN
-
-                Frontend -> Frontend : 管理者ページへ遷移
-                Frontend --> 利用者 : 管理者画面を表示
-
-            else role = EMPLOYEE
-
-                Frontend -> Frontend : 社員ページへ遷移
-                Frontend --> 利用者 : 社員画面を表示
-
-            end
+            Frontend -> Frontend : 社員ページへ遷移
+            Frontend --> 利用者 : 社員画面を表示
 
         end
+
     end
 end
 
@@ -347,7 +323,6 @@ GlobalExceptionHandler
 【Service業務エラー】
 
 ログインメールアドレス重複
-社員メールアドレス重複
    |
    v
 ConflictException
@@ -358,7 +333,6 @@ ConflictException
 role
 部署
 役職
-在籍状態
 
 はフロントエンドで
 選択肢を制限するため、
