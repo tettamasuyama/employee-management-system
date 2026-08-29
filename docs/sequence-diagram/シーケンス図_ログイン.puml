@@ -1,21 +1,214 @@
+' @startuml
+' title ログイン処理シーケンス図
+
+' actor 利用者
+' boundary React as Frontend
+' control AuthController
+' entity AuthRequestDto
+' control GlobalExceptionHandler
+' control AuthService
+' entity UserRepository
+' control PasswordEncoder
+' control JwtProvider
+
+' 利用者 -> Frontend : ログインメールアドレスと\nパスワードを入力
+
+' Frontend -> AuthController : POST /api/auth/login\nAuthRequestDto(email, password)
+
+' AuthController -> AuthRequestDto : @Validによる入力値チェック
+
+' note right of AuthRequestDto
+' Bean Validationを利用して
+' 入力値をチェックする。
+
+' ・@NotBlank
+'   必須入力チェック
+
+' ・@Email
+'   メール形式チェック
+
+' ・@Size
+'   文字数チェック
+
+' 入力条件に違反した場合は
+' MethodArgumentNotValidExceptionが
+' Springによって発生する。
+' end note
+
+
+' alt DTOの入力値が不正
+
+'     AuthRequestDto --> GlobalExceptionHandler : MethodArgumentNotValidException
+
+'     note right of GlobalExceptionHandler
+'     DTOの入力チェックエラーを
+'     共通処理する。
+
+'     例：
+
+'     ・メールアドレス未入力
+'     ・メール形式不正
+'     ・メールアドレス文字数超過
+'     ・パスワード未入力
+'     ・パスワード文字数不足
+'     ・パスワード文字数超過
+
+'     HTTPステータスとして
+'     400 Bad Requestを返却する。
+'     end note
+
+'     GlobalExceptionHandler --> Frontend : 400 Bad Request\n入力エラーメッセージ
+'     Frontend --> 利用者 : 入力エラーを表示
+
+
+' else DTOの入力値が正常
+
+'     AuthController -> AuthService : authenticate(email, password)
+
+
+'     == ユーザー検索 ==
+
+'     AuthService -> UserRepository : findByEmail(email)
+'     UserRepository --> AuthService : Optional<User>
+
+'     alt Userが存在しない
+
+'         AuthService -> AuthService : AuthExceptionをthrow
+
+'         note right of AuthService
+'         アカウントが存在しない場合は
+'         認証処理の業務エラーとして
+'         AuthExceptionをthrowする。
+
+'         AuthExceptionは
+'         RuntimeExceptionを継承する。
+'         end note
+
+
+'     else Userが存在する
+
+'         == パスワード確認 ==
+
+'         AuthService -> PasswordEncoder : matches(password, user.password)
+'         PasswordEncoder --> AuthService : true / false
+
+'         alt パスワードが一致しない
+
+'             AuthService -> AuthService : AuthExceptionをthrow
+
+'             note right of AuthService
+'             パスワードが一致しない場合も
+'             AuthExceptionをthrowする。
+
+'             User不存在の場合と
+'             同じ認証エラーメッセージを
+'             使用する。
+'             end note
+
+
+'         else パスワードが一致する
+
+'             == JWT生成 ==
+
+'             AuthService -> JwtProvider : generateToken(user.id)
+
+'             note right of JwtProvider
+'             JWTのsubjectには
+'             Users.idを設定する。
+'             end note
+
+'             JwtProvider --> AuthService : JWTトークン
+
+
+'             == レスポンス生成 ==
+
+'             AuthService -> AuthService : AuthResponseDto生成\n(token, role)
+'             AuthService --> AuthController : AuthResponseDto
+
+'             AuthController --> Frontend : ログイン成功\nAuthResponseDto
+
+'             Frontend -> Frontend : tokenとroleを保存
+
+
+'             alt role = ADMIN
+
+'                 Frontend --> 利用者 : 管理者画面を表示
+
+'             else role = EMPLOYEE
+
+'                 Frontend --> 利用者 : 社員画面を表示
+
+'             end
+
+'         end
+'     end
+' end
+
+
+' note over UserRepository
+' UserRepositoryでは
+' Spring Data JPAを使用する。
+
+' findByEmail()などの
+' Repositoryメソッドを利用し、
+' SQLは直接記述しない。
+' end note
+
+
+' note over AuthRequestDto, GlobalExceptionHandler
+' DTOの入力エラーと
+' Serviceの認証エラーは
+' 役割を分ける。
+
+' 【DTO入力エラー】
+
+' @NotBlank
+' @Email
+' @Size
+'    |
+'    v
+' MethodArgumentNotValidException
+'    |
+'    v
+' GlobalExceptionHandler
+'    |
+'    v
+' 400 Bad Request
+
+
+' 【Service認証エラー】
+
+' User不存在
+' パスワード不一致
+'    |
+'    v
+' AuthException
+' end note
+
+' @enduml
+
 @startuml
 title ログイン処理シーケンス図
 
 actor 利用者
 boundary React as Frontend
+participant "Spring MVC" as SpringMVC
 control AuthController
 entity AuthRequestDto
 control GlobalExceptionHandler
 control AuthService
 entity UserRepository
-control PasswordEncoder
 control JwtProvider
 
-利用者 -> Frontend : ログインメールアドレスと\nパスワードを入力
 
-Frontend -> AuthController : POST /api/auth/login\nAuthRequestDto(email, password)
+== ログイン情報入力 ==
 
-AuthController -> AuthRequestDto : @Validによる入力値チェック
+利用者 -> Frontend : メールアドレスと\nパスワードを入力
+
+Frontend -> SpringMVC : POST /api/auth/login\n(email, password)
+
+SpringMVC -> AuthRequestDto : リクエスト情報を変換
+SpringMVC -> AuthRequestDto : @Validによる入力値チェック
 
 note right of AuthRequestDto
 Bean Validationを利用して
@@ -29,16 +222,12 @@ Bean Validationを利用して
 
 ・@Size
   文字数チェック
-
-入力条件に違反した場合は
-MethodArgumentNotValidExceptionが
-Springによって発生する。
 end note
 
 
 alt DTOの入力値が不正
 
-    AuthRequestDto --> GlobalExceptionHandler : MethodArgumentNotValidException
+    SpringMVC -> GlobalExceptionHandler : MethodArgumentNotValidException
 
     note right of GlobalExceptionHandler
     DTOの入力チェックエラーを
@@ -52,113 +241,147 @@ alt DTOの入力値が不正
     ・パスワード未入力
     ・パスワード文字数不足
     ・パスワード文字数超過
-
-    HTTPステータスとして
-    400 Bad Requestを返却する。
     end note
 
     GlobalExceptionHandler --> Frontend : 400 Bad Request\n入力エラーメッセージ
+
     Frontend --> 利用者 : 入力エラーを表示
 
 
 else DTOの入力値が正常
 
-    AuthController -> AuthService : authenticate(email, password)
+    SpringMVC -> AuthController : login(AuthRequestDto)
+
+    AuthController -> AuthService : authenticate(email, rawPassword)
 
 
-    == ユーザー検索 ==
+    == メールアドレス・パスワード検索 ==
 
-    AuthService -> UserRepository : findByEmail(email)
+    AuthService -> UserRepository : findForLogin(email, rawPassword)
+
+    note right of UserRepository
+    emailとpasswordの両方を
+    WHERE条件にして検索する。
+
+    SELECT *
+    FROM users
+    WHERE email = :email
+      AND password =
+          crypt(:rawPassword, password);
+
+    :rawPasswordには
+    フロントから受け取った
+    平文パスワードを設定する。
+
+    DBに保存されているpasswordから
+    ハッシュ方式とソルトを取得し、
+    crypt()で入力パスワードを検証する。
+    end note
+
     UserRepository --> AuthService : Optional<User>
 
-    alt Userが存在しない
 
-        AuthService -> AuthService : AuthExceptionをthrow
+    alt 認証情報が一致しない
+
+        AuthService --> SpringMVC : AuthException
 
         note right of AuthService
-        アカウントが存在しない場合は
-        認証処理の業務エラーとして
+        検索結果が0件の場合は
         AuthExceptionをthrowする。
 
-        AuthExceptionは
-        RuntimeExceptionを継承する。
+        次のどちらが原因かは
+        外部から判別できないようにする。
+
+        ・メールアドレスが存在しない
+        ・パスワードが一致しない
+
+        エラーメッセージ：
+
+        「メールアドレスまたは
+          パスワードが違います。」
         end note
 
+        SpringMVC -> GlobalExceptionHandler : handleAuthException(e)
 
-    else Userが存在する
+        GlobalExceptionHandler --> Frontend : 401 Unauthorized\n認証エラーメッセージ
 
-        == パスワード確認 ==
-
-        AuthService -> PasswordEncoder : matches(password, user.password)
-        PasswordEncoder --> AuthService : true / false
-
-        alt パスワードが一致しない
-
-            AuthService -> AuthService : AuthExceptionをthrow
-
-            note right of AuthService
-            パスワードが一致しない場合も
-            AuthExceptionをthrowする。
-
-            User不存在の場合と
-            同じ認証エラーメッセージを
-            使用する。
-            end note
+        Frontend --> 利用者 : 認証エラーを表示
 
 
-        else パスワードが一致する
+    else 認証情報が一致する
 
-            == JWT生成 ==
-
-            AuthService -> JwtProvider : generateToken(user.id)
-
-            note right of JwtProvider
-            JWTのsubjectには
-            Users.idを設定する。
-            end note
-
-            JwtProvider --> AuthService : JWTトークン
+        UserRepository --> AuthService : User
 
 
-            == レスポンス生成 ==
+        == JWT生成 ==
 
-            AuthService -> AuthService : AuthResponseDto生成\n(token, role)
-            AuthService --> AuthController : AuthResponseDto
+        AuthService -> JwtProvider : generateToken(user.id)
 
-            AuthController --> Frontend : ログイン成功\nAuthResponseDto
+        note right of JwtProvider
+        JWTのsubjectには
+        Users.idを設定する。
+        end note
 
-            Frontend -> Frontend : tokenとroleを保存
+        JwtProvider --> AuthService : JWTトークン
 
 
-            alt role = ADMIN
+        == レスポンス生成 ==
 
-                Frontend --> 利用者 : 管理者画面を表示
+        AuthService -> AuthService : AuthResponseDto生成\n(token, role)
 
-            else role = EMPLOYEE
+        AuthService --> AuthController : AuthResponseDto
 
-                Frontend --> 利用者 : 社員画面を表示
+        AuthController --> SpringMVC : 200 OK\nAuthResponseDto
 
-            end
+        SpringMVC --> Frontend : 200 OK\nAuthResponseDto
+
+        Frontend -> Frontend : tokenとroleを保存
+
+
+        alt role = ADMIN
+
+            Frontend --> 利用者 : 管理者画面を表示
+
+        else role = EMPLOYEE
+
+            Frontend --> 利用者 : 社員画面を表示
 
         end
     end
 end
 
 
+note over AuthService, UserRepository
+ログイン時にはServiceで
+passwordEncoder.encode()を実行しない。
+
+入力された平文パスワードを
+Repositoryへ渡し、
+DBのcrypt()で検証する。
+
+一方、ユーザー登録時と
+パスワード変更時には
+パスワードをハッシュ化して保存する。
+end note
+
+
 note over UserRepository
 UserRepositoryでは
 Spring Data JPAを使用する。
 
-findByEmail()などの
-Repositoryメソッドを利用し、
-SQLは直接記述しない。
+PostgreSQL固有のcrypt()を使うため、
+@QueryのnativeQueryに
+SQLを記述する。
+
+PostgreSQLではpgcryptoの
+有効化が必要になる。
 end note
 
 
 note over AuthRequestDto, GlobalExceptionHandler
-DTOの入力エラーと
-Serviceの認証エラーは
+DTO入力エラーと認証エラーは
 役割を分ける。
+
 
 【DTO入力エラー】
 
@@ -176,13 +399,20 @@ GlobalExceptionHandler
 400 Bad Request
 
 
-【Service認証エラー】
+【認証エラー】
 
-User不存在
+メールアドレス不存在
+または
 パスワード不一致
    |
    v
 AuthException
+   |
+   v
+GlobalExceptionHandler
+   |
+   v
+401 Unauthorized
 end note
 
 @enduml
