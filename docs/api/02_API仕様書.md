@@ -15,13 +15,13 @@
 
 | No | エンドポイント                 | メソッド   | 認証 | 権限             | 概要                          |
 | -- | ----------------------- | ------ | -- | -------------- | --------------------------- |
-| 3  | `/api/employees`        | GET    | 必要 | ADMIN・EMPLOYEE | 社員一覧を取得                     |
-| 4  | `/api/employees`        | POST   | 必要 | ADMIN          | 社員情報を新規登録                   |
+| 3  | `/api/employee/list`        | GET    | 必要 | ADMIN・EMPLOYEE | 社員一覧を取得                     |
+| 4  | `/api/employee`        | POST   | 必要 | ADMIN          | 社員情報を新規登録                   |
 | 5  | `/api/employees/{id}`   | PUT    | 必要 | ADMIN          | 社員情報を更新                     |
 | 6  | `/api/employees/{id}`   | DELETE | 必要 | ADMIN          | 社員情報および対応するユーザー情報を削除        |
 | 7  | `/api/employees/import` | POST   | 必要 | ADMIN          | CSVによる社員情報の一括登録・更新          |
-| 8  | `/api/employees/me`     | GET    | 必要 | EMPLOYEE       | ログインユーザー自身の社員情報を取得          |
-| 9  | `/api/employees/me`     | PUT    | 必要 | EMPLOYEE       | ログインユーザー自身の氏名・社員用メールアドレスを更新 |
+| 8  | `/api/employees/{id}`     | GET    | 必要 | EMPLOYEE       | ログインユーザー自身の社員情報を取得          |
+| 9  | `/api/employees/{id}`     | PUT    | 必要 | EMPLOYEE       | ログインユーザー自身の氏名・社員用メールアドレスを更新 |
 
 ---
 
@@ -29,8 +29,8 @@
 
 | No | エンドポイント                 | メソッド | 認証 | 権限             | 概要      |
 | -- | ----------------------- | ---- | -- | -------------- | ------- |
-| 10 | `/api/departments`      | GET  | 必要 | ADMIN・EMPLOYEE | 部署一覧を取得 |
-| 11 | `/api/departments`      | POST | 必要 | ADMIN          | 部署を新規登録 |
+| 10 | `/api/department/list`      | GET  | 必要 | ADMIN・EMPLOYEE | 部署一覧を取得 |
+| 11 | `/api/department`      | POST | 必要 | ADMIN          | 部署を新規登録 |
 | 12 | `/api/departments/{id}` | PUT  | 必要 | ADMIN          | 部署名を更新  |
 
 ---
@@ -39,8 +39,8 @@
 
 | No | エンドポイント               | メソッド | 認証 | 権限             | 概要      |
 | -- | --------------------- | ---- | -- | -------------- | ------- |
-| 13 | `/api/positions`      | GET  | 必要 | ADMIN・EMPLOYEE | 役職一覧を取得 |
-| 14 | `/api/positions`      | POST | 必要 | ADMIN          | 役職を新規登録 |
+| 13 | `/api/position/list`      | GET  | 必要 | ADMIN・EMPLOYEE | 役職一覧を取得 |
+| 14 | `/api/position`      | POST | 必要 | ADMIN          | 役職を新規登録 |
 | 15 | `/api/positions/{id}` | PUT  | 必要 | ADMIN          | 役職名を更新  |
 
 ---
@@ -63,17 +63,25 @@
 
 ---
 
+
 ## 2.2 認証
 
 JWT認証を使用する。
 
-認証が必要なAPIには、以下のリクエストヘッダーを付与する。
+ログインまたはユーザー登録に成功した場合、**バックエンドでJWT形式のアクセストークン（accessToken）を発行し、フロントエンドへ返却する。**
+
+アクセストークンは、ログイン済みのユーザーであることを確認するために使用する。
+
+認証が必要なAPIを利用する場合、フロントエンドはバックエンドから受け取ったアクセストークンを、以下のリクエストヘッダーに付与する。
 
 ```http
-Authorization: Bearer {token}
+Authorization: Bearer {accessToken}
 ```
 
-JWTのユーザー識別情報には、Usersテーブルの`id`を使用する。
+JWT形式のアクセストークンには、ユーザーを識別するための情報としてUsersテーブルの`id`を含める。
+
+バックエンドは、リクエストに付与されたアクセストークンを検証し、ログインユーザーを特定する。
+
 
 ---
 
@@ -288,12 +296,12 @@ Usersテーブルのメールアドレスとパスワードを使用してログ
 
 ```json
 {
-  "status": "SUCCESS",
+
   "data": {
     "token": "jwt-token",
     "role": 0
-  },
-  "message": "ログインが完了しました。"
+  }
+  
 }
 ```
 
@@ -330,7 +338,7 @@ ADMINには社員情報の全項目を返す。
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": [
     {
       "id": 1,
@@ -345,8 +353,8 @@ ADMINには社員情報の全項目を返す。
       "hireDate": "2026-04-01",
       "status": "ACTIVE"
     }
-  ],
-  "message": "社員一覧の取得が完了しました。"
+  ]
+  
 }
 ```
 
@@ -356,7 +364,7 @@ EMPLOYEEには氏名、社員用メールアドレス、部署および役職を
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": [
     {
       "name": "山田太郎",
@@ -364,8 +372,8 @@ EMPLOYEEには氏名、社員用メールアドレス、部署および役職を
       "departmentName": "SALES",
       "positionName": "MANAGER"
     }
-  ],
-  "message": "社員一覧の取得が完了しました。"
+  ]
+  
 }
 ```
 
@@ -441,7 +449,7 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 1,
     "userId": 10,
@@ -454,8 +462,8 @@ Authorization: Bearer {token}
     "positionName": "MANAGER",
     "hireDate": "2026-04-01",
     "status": "ACTIVE"
-  },
-  "message": "社員情報を登録しました。"
+  }
+
 }
 ```
 
@@ -540,7 +548,7 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 1,
     "userId": 10,
@@ -554,7 +562,7 @@ Authorization: Bearer {token}
     "hireDate": "2026-04-01",
     "status": "ACTIVE"
   },
-  "message": "社員情報を更新しました。"
+  
 }
 ```
 
@@ -648,7 +656,7 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 1,
     "employeeNumber": "11111",
@@ -660,8 +668,8 @@ Authorization: Bearer {token}
     "positionName": "MANAGER",
     "hireDate": "2026-04-01",
     "status": "ACTIVE"
-  },
-  "message": "自身の社員情報を取得しました。"
+  }
+  
 }
 ```
 
@@ -732,12 +740,12 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "name": "山田太郎",
     "employeeEmail": "employee-new@example.com"
-  },
-  "message": "自身の社員情報を更新しました。"
+  }
+  
 }
 ```
 
@@ -806,12 +814,12 @@ userId,employeeNumber,name,employeeEmail,departmentName,positionName,hireDate,st
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "registeredCount": 5,
     "updatedCount": 3
-  },
-  "message": "CSVの取り込みが完了しました。"
+  }
+  
 }
 ```
 
@@ -845,7 +853,7 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": [
     {
       "id": 1,
@@ -863,8 +871,8 @@ Authorization: Bearer {token}
       "id": 4,
       "name": "SALES"
     }
-  ],
-  "message": "部署一覧を取得しました。"
+  ]
+  
 }
 ```
 
@@ -886,12 +894,12 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 5,
     "name": "DEVELOPMENT"
-  },
-  "message": "部署情報を登録しました。"
+  }
+  
 }
 ```
 
@@ -920,12 +928,12 @@ URLの`id`には、Departmentsテーブルの`id`を指定する。
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 5,
     "name": "SYSTEM_DEVELOPMENT"
-  },
-  "message": "部署情報を更新しました。"
+  }
+  
 }
 ```
 
@@ -953,7 +961,7 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": [
     {
       "id": 1,
@@ -979,8 +987,8 @@ Authorization: Bearer {token}
       "id": 6,
       "name": "CEO"
     }
-  ],
-  "message": "役職一覧を取得しました。"
+  ]
+  
 }
 ```
 
@@ -1002,12 +1010,12 @@ Authorization: Bearer {token}
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 7,
     "name": "SUB_MANAGER"
-  },
-  "message": "役職情報を登録しました。"
+  }
+  
 }
 ```
 
@@ -1036,12 +1044,12 @@ URLの`id`には、Positionsテーブルの`id`を指定する。
 
 ```json
 {
-  "status": "SUCCESS",
+  
   "data": {
     "id": 7,
     "name": "ASSISTANT_MANAGER"
-  },
-  "message": "役職情報を更新しました。"
+  }
+  
 }
 ```
 
