@@ -15,8 +15,8 @@
 
 | No | エンドポイント                 | メソッド   | 認証 | 権限             | 概要                          |
 | -- | ----------------------- | ------ | -- | -------------- | --------------------------- |
-| 3  | `/api/employee/list`        | GET    | 必要 | ADMIN・EMPLOYEE | 社員一覧を取得                     |
-| 4  | `/api/employee`        | POST   | 必要 | ADMIN          | 社員情報を新規登録                   |
+| 3  | `/api/employees/list`        | GET    | 必要 | ADMIN・EMPLOYEE | 社員一覧を取得                     |
+| 4  | `/api/employees`        | POST   | 必要 | ADMIN          | 社員情報を新規登録                   |
 | 5  | `/api/employees/{id}`   | PUT    | 必要 | ADMIN          | 社員情報を更新                     |
 | 6  | `/api/employees/{id}`   | DELETE | 必要 | ADMIN          | 社員情報および対応するユーザー情報を削除        |
 | 7  | `/api/employees/import` | POST   | 必要 | ADMIN          | CSVによる社員情報の一括登録・更新          |
@@ -29,8 +29,8 @@
 
 | No | エンドポイント                 | メソッド | 認証 | 権限             | 概要      |
 | -- | ----------------------- | ---- | -- | -------------- | ------- |
-| 10 | `/api/department/list`      | GET  | 必要 | ADMIN・EMPLOYEE | 部署一覧を取得 |
-| 11 | `/api/department`      | POST | 必要 | ADMIN          | 部署を新規登録 |
+| 10 | `/api/departments/list`      | GET  | 必要 | ADMIN・EMPLOYEE | 部署一覧を取得 |
+| 11 | `/api/departments`      | POST | 必要 | ADMIN          | 部署を新規登録 |
 | 12 | `/api/departments/{id}` | PUT  | 必要 | ADMIN          | 部署名を更新  |
 
 ---
@@ -39,8 +39,8 @@
 
 | No | エンドポイント               | メソッド | 認証 | 権限             | 概要      |
 | -- | --------------------- | ---- | -- | -------------- | ------- |
-| 13 | `/api/position/list`      | GET  | 必要 | ADMIN・EMPLOYEE | 役職一覧を取得 |
-| 14 | `/api/position`      | POST | 必要 | ADMIN          | 役職を新規登録 |
+| 13 | `/api/positions/list`      | GET  | 必要 | ADMIN・EMPLOYEE | 役職一覧を取得 |
+| 14 | `/api/positions`      | POST | 必要 | ADMIN          | 役職を新規登録 |
 | 15 | `/api/positions/{id}` | PUT  | 必要 | ADMIN          | 役職名を更新  |
 
 ---
